@@ -6,6 +6,7 @@ import math
 import re
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from html import unescape
@@ -52,6 +53,28 @@ class DayRun:
     output_dir: Path
     raw_list: List[Dict[str, Any]]
     results: List[FetchResult]
+
+
+def emit_result_progress(target_date: str, idx: int, item: Dict[str, Any], result: FetchResult) -> None:
+    print(
+        json.dumps(
+            {
+                "date": target_date,
+                "idx": idx,
+                "stockName": item.get("stockName") or item.get("industryName"),
+                "title": item.get("title"),
+                "infoCode": item.get("infoCode"),
+                "status": result.status,
+                "source": result.source,
+                "skipped": result.skipped,
+                "chars": len(result.text),
+                "summary": result.summary[:2],
+                "file": str(result.output_path) if result.output_path else None,
+                "error": result.error,
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 def log_event(log_path: Path, level: str, message: str, **payload: Any) -> None:
@@ -688,6 +711,47 @@ def fetch_detail(item: Dict[str, Any], output_dir: Path, index: int, timeout: in
         return FetchResult(item=item, status="error", text="", summary=[], output_path=None, source="none", error=repr(exc))
 
 
+def fetch_details_for_day(items: List[Dict[str, Any]], target_date: str, output_dir: Path, args: argparse.Namespace, log_path: Path, resume_map: Dict[str, Path]) -> List[FetchResult]:
+    indexed_items = list(enumerate(items, 1))
+    results: List[Optional[FetchResult]] = [None] * len(indexed_items)
+
+    def _run_one(index: int, item: Dict[str, Any]) -> Tuple[int, Dict[str, Any], FetchResult]:
+        result = fetch_detail(
+            item=item,
+            output_dir=output_dir,
+            index=index,
+            timeout=args.timeout,
+            retries=args.retries,
+            retry_delay=args.retry_delay,
+            log_path=log_path,
+            resume_map=resume_map,
+            force=args.force,
+            use_pdf_fallback=not args.no_pdf_fallback,
+        )
+        return index, item, result
+
+    concurrency = max(1, getattr(args, "concurrency", 1))
+    if concurrency == 1 or len(indexed_items) <= 1:
+        for index, item in indexed_items:
+            _, item_ref, result = _run_one(index, item)
+            results[index - 1] = result
+            emit_result_progress(target_date, index, item_ref, result)
+            if index < len(indexed_items):
+                time.sleep(max(0.0, args.delay))
+        return [result for result in results if result is not None]
+
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        future_map = {
+            executor.submit(_run_one, index, item): (index, item)
+            for index, item in indexed_items
+        }
+        for future in as_completed(future_map):
+            index, item, result = future.result()
+            results[index - 1] = result
+            emit_result_progress(target_date, index, item, result)
+    return [result for result in results if result is not None]
+
+
 def write_csv_index(output_dir: Path, results: List[FetchResult]) -> Path:
     index_path = output_dir / DEFAULT_INDEX_NAME
     with index_path.open("w", encoding="utf-8", newline="") as handle:
@@ -1071,10 +1135,18 @@ def build_trading_dashboard(target_date: str, analysis_input: List[Dict[str, Any
         reverse=True,
     )
     broker_counter: Dict[str, int] = {}
+    industry_counter: Dict[str, int] = {}
+    theme_counter: Dict[str, int] = {}
     for entry in analysis_input:
         broker = entry.get("orgName") or "未知机构"
         broker_counter[broker] = broker_counter.get(broker, 0) + 1
+        industry = entry.get("industryName") or "未标注行业"
+        industry_counter[industry] = industry_counter.get(industry, 0) + 1
+        for tag in entry["structured_analysis"].get("theme_tags") or []:
+            theme_counter[tag] = theme_counter.get(tag, 0) + 1
     active_brokers = sorted(broker_counter.items(), key=lambda item: item[1], reverse=True)[:5]
+    hot_industries = sorted(industry_counter.items(), key=lambda item: item[1], reverse=True)[:5]
+    hot_themes = sorted(theme_counter.items(), key=lambda item: item[1], reverse=True)[:6]
 
     lines = [
         f"# TRADING_DASHBOARD（{target_date}）",
@@ -1118,6 +1190,12 @@ def build_trading_dashboard(target_date: str, analysis_input: List[Dict[str, Any
         if parts:
             change_lines.append(f"- `{entry.get('stockName') or entry.get('industryName')}`：{'；'.join(parts)}")
     lines.extend(change_lines[:8] if change_lines else ["- [无显式变化提取]"])
+
+    lines.extend(["", "## Sector Heat", ""])
+    lines.extend([f"- `{name}`：{count} 篇" for name, count in hot_industries] if hot_industries else ["- [无样本]"])
+
+    lines.extend(["", "## Theme Heat", ""])
+    lines.extend([f"- `{name}`：命中 `{count}` 次" for name, count in hot_themes] if hot_themes else ["- [无明显主题]"])
 
     lines.extend(["", "## Active Brokers", ""])
     lines.extend([f"- `{name}`：覆盖 `{count}` 篇" for name, count in active_brokers] if active_brokers else ["- [无样本]"])
@@ -1164,6 +1242,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, default=20, help="HTTP timeout in seconds")
     parser.add_argument("--retries", type=int, default=2, help="Retry times for list/detail fetch")
     parser.add_argument("--retry-delay", type=float, default=1.0, help="Retry delay seconds")
+    parser.add_argument("--concurrency", type=int, default=1, help="Concurrent detail fetch workers")
     parser.add_argument("--output-dir", default=None, help="Output root directory")
     parser.add_argument("--stock", action="append", dest="stock_filters", default=[], help="Filter by stock code or name, repeatable")
     parser.add_argument("--org", action="append", dest="org_filters", default=[], help="Filter by broker / organization, repeatable")
@@ -1192,42 +1271,7 @@ def run_for_date(target_date: str, root_dir: Path, args: argparse.Namespace) -> 
 
     log_event(log_path, "info", "day_start", date=target_date, raw=len(raw_list), filtered=len(filtered_list), selected=len(items))
 
-    results: List[FetchResult] = []
-    for idx, item in enumerate(items, 1):
-        result = fetch_detail(
-            item=item,
-            output_dir=output_dir,
-            index=idx,
-            timeout=args.timeout,
-            retries=args.retries,
-            retry_delay=args.retry_delay,
-            log_path=log_path,
-            resume_map=resume_map,
-            force=args.force,
-            use_pdf_fallback=not args.no_pdf_fallback,
-        )
-        results.append(result)
-        print(
-            json.dumps(
-                {
-                    "date": target_date,
-                    "idx": idx,
-                    "stockName": item.get("stockName") or item.get("industryName"),
-                    "title": item.get("title"),
-                    "infoCode": item.get("infoCode"),
-                    "status": result.status,
-                    "source": result.source,
-                    "skipped": result.skipped,
-                    "chars": len(result.text),
-                    "summary": result.summary[:2],
-                    "file": str(result.output_path) if result.output_path else None,
-                    "error": result.error,
-                },
-                ensure_ascii=False,
-            )
-        )
-        if idx < len(items):
-            time.sleep(max(0.0, args.delay))
+    results = fetch_details_for_day(items, target_date, output_dir, args, log_path, resume_map)
 
     write_day_summary(output_dir, target_date, args.qtype, filtered_list, results, log_path)
     if args.no_xlsx:
