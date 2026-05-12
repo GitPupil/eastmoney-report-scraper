@@ -181,6 +181,139 @@ def is_heading(line: str) -> bool:
     return len(line) <= 14 and not re.search(r"[。；;]", line)
 
 
+def split_sentences(text: str) -> List[str]:
+    raw_parts = re.split(r"(?<=[。！？；;])\s*", text.replace("\n", " "))
+    return [normalize_line(part) for part in raw_parts if normalize_line(part)]
+
+
+def extract_sections(text: str) -> Dict[str, List[str]]:
+    lines = [normalize_line(line) for line in text.splitlines() if normalize_line(line)]
+    sections: Dict[str, List[str]] = {}
+    current = "正文"
+    sections[current] = []
+    heading_set = {name for _, name in SUMMARY_SECTION_KEYS}
+    for line in lines:
+        if line in heading_set:
+            current = line
+            sections.setdefault(current, [])
+            continue
+        sections.setdefault(current, []).append(line)
+    return sections
+
+
+def extract_risk_items(text: str, industry_name: str = "") -> List[str]:
+    sections = extract_sections(text)
+    risk_lines: List[str] = []
+    for key in ("风险提示", "投资建议", "核心观点"):
+        if key in sections:
+            for line in sections[key][:6]:
+                if "风险" in line or key == "风险提示":
+                    risk_lines.append(line)
+
+    joined = " ".join(risk_lines)
+    candidates = re.split(r"[；;。]", joined)
+    cleaned: List[str] = []
+    industry_hint = (industry_name or "").lower()
+    banned_by_industry = []
+    if industry_hint and all(term not in industry_hint for term in ("医", "药", "医疗")):
+        banned_by_industry.extend(["创新药", "临床", "集采"])
+    for candidate in candidates:
+        item = normalize_line(candidate)
+        if not item:
+            continue
+        item = re.sub(r"^(风险提示|投资风险|特别风险提示)[：:]?", "", item).strip()
+        if len(item) < 4:
+            continue
+        if any(bad in item for bad in banned_by_industry):
+            continue
+        if item not in cleaned:
+            cleaned.append(item)
+    return cleaned[:5]
+
+
+def extract_financial_signals(text: str, summary: List[str]) -> Dict[str, str]:
+    joined = " ".join(summary) + " " + text.replace("\n", " ")
+    signal_map = {
+        "revenue": [(r"营收[^。]{0,20}(增长|提升|高增)", "收入增长"), (r"营收[^。]{0,20}(下降|下滑)", "收入承压")],
+        "profit": [(r"净利润[^。]{0,20}(增长|提升|高增|扭亏|超预期)", "利润改善"), (r"净利润[^。]{0,20}(下降|下滑|亏损|承压)", "利润承压")],
+        "margin": [(r"毛利率[^。]{0,20}(提升|改善)", "毛利率改善"), (r"毛利率[^。]{0,20}(下降|承压)", "毛利率承压")],
+        "demand": [(r"放量|景气|回暖|提价|修复|加速", "景气/需求改善"), (r"竞争加剧|需求不及预期|产能过剩", "需求或竞争压力")],
+    }
+    signals: Dict[str, str] = {}
+    for key, patterns in signal_map.items():
+        for pattern, label in patterns:
+            if re.search(pattern, joined):
+                signals[key] = label
+                break
+    return signals
+
+
+def build_headline(item: Dict[str, Any], text: str, summary: List[str], financial_signals: Dict[str, str]) -> str:
+    stock_name = item.get("stockName") or item.get("industryName") or "该标的"
+    if summary:
+        lead = re.sub(r"^(事件|投资要点|核心观点|盈利预测与投资建议|投资建议|风险提示)[：:]?", "", summary[0]).strip()
+        if len(lead) <= 90:
+            return lead
+    signal_parts = []
+    for key in ("revenue", "profit", "margin", "demand"):
+        if key in financial_signals:
+            signal_parts.append(financial_signals[key])
+    if signal_parts:
+        return f"{stock_name}：{'，'.join(signal_parts[:3])}"
+    sentences = split_sentences(text)
+    return sentences[0][:90] if sentences else "[无有效结论]"
+
+
+def infer_theme_tags(title: str, text: str, summary: List[str]) -> List[str]:
+    joined = f"{title} {' '.join(summary)} {text.replace(chr(10), ' ')}"
+    theme_patterns = {
+        "业绩增长": r"增长|高增|超预期|扭亏",
+        "利润修复": r"修复|改善|减亏",
+        "景气改善": r"景气|回暖|提价|放量",
+        "首次覆盖": r"首次覆盖",
+        "评级信号": r"买入|增持|维持评级|目标价|PE|EPS",
+        "风险提示": r"风险|承压|不及预期|竞争加剧",
+    }
+    tags = [name for name, pattern in theme_patterns.items() if re.search(pattern, joined)]
+    return tags[:6]
+
+
+def score_report(analysis: Dict[str, Any]) -> Tuple[int, str, List[str]]:
+    score = 50
+    reasons: List[str] = []
+    positive_count = len(analysis.get("positive_signals") or [])
+    negative_count = len(analysis.get("negative_signals") or [])
+    if positive_count:
+        score += min(positive_count * 8, 20)
+        reasons.append("存在正向经营/景气信号")
+    if negative_count:
+        score -= min(negative_count * 6, 18)
+        reasons.append("存在负向经营/景气信号")
+    valuation_text = "；".join(analysis.get("valuation_and_rating") or [])
+    if "评级：买入" in valuation_text:
+        score += 8
+        reasons.append("卖方评级积极")
+    elif "评级：增持" in valuation_text:
+        score += 4
+        reasons.append("卖方评级偏积极")
+    if any(tag in (analysis.get("theme_tags") or []) for tag in ("业绩增长", "利润修复", "景气改善")):
+        score += 6
+        reasons.append("具备可交易主题标签")
+    if len(analysis.get("risks") or []) >= 3:
+        score -= 4
+        reasons.append("风险提示较多")
+    score = max(0, min(100, score))
+    if score >= 70:
+        bucket = "A"
+    elif score >= 58:
+        bucket = "B"
+    elif score >= 45:
+        bucket = "C"
+    else:
+        bucket = "D"
+    return score, bucket, reasons[:4]
+
+
 def extract_summary(text: str, max_bullets: int = 5) -> List[str]:
     lines = [normalize_line(line) for line in text.splitlines() if normalize_line(line)]
     if not lines:
@@ -221,21 +354,22 @@ def build_structured_analysis(item: Dict[str, Any], text: str, summary: List[str
     rating = item.get("emRatingName") or item.get("sRatingName") or ""
     title = item.get("title") or ""
 
-    statement = summary[0] if summary else (text.splitlines()[0] if text else "[无有效结论]")
-    drivers = summary[1:3] if len(summary) > 1 else ([] if not summary else [summary[0]])
+    financial_signals = extract_financial_signals(text, summary)
+    statement = build_headline(item, text, summary, financial_signals)
+    drivers = summary[1:3] if len(summary) > 1 else ([] if not summary else [statement])
 
     positives: List[str] = []
     negatives: List[str] = []
-    risks: List[str] = []
+    for label in financial_signals.values():
+        if "增长" in label or "改善" in label or "修复" in label:
+            positives.append(label)
+        if "承压" in label or "压力" in label:
+            negatives.append(label)
 
-    signal_map = [
-        (r"增长|改善|提升|加速|修复|超预期|高增|扭亏|回暖", positives, "盈利/经营趋势偏积极"),
-        (r"承压|下滑|下降|回落|减亏|亏损|疲弱", negatives, "短期经营或景气存在压力"),
-        (r"风险提示|竞争加剧|需求变动|地缘政治|价格波动|不及预期|汇率波动|政策变化", risks, "需关注外部与经营风险"),
-    ]
-    for pattern, bucket, label in signal_map:
-        if re.search(pattern, joined_summary) or re.search(pattern, joined_text):
-            bucket.append(label)
+    if not positives and re.search(r"增长|改善|提升|加速|修复|超预期|高增|扭亏|回暖", joined_summary):
+        positives.append("盈利/经营趋势偏积极")
+    if not negatives and re.search(r"承压|下滑|下降|回落|亏损|疲弱", joined_summary):
+        negatives.append("短期经营或景气存在压力")
 
     valuation = []
     pe_match = re.findall(r"PE[为：:]?\s*([0-9\.]+(?:/[0-9\.]+){0,3})倍", joined_text)
@@ -263,11 +397,9 @@ def build_structured_analysis(item: Dict[str, Any], text: str, summary: List[str
     if rating_change:
         valuation.append(rating_change)
 
-    risk_phrases = re.findall(r"风险提示[：:]?([^。；\n]{0,120})", joined_text)
-    for phrase in risk_phrases[:3]:
-        cleaned = normalize_line(phrase)
-        if cleaned:
-            risks.append(cleaned)
+    risks = extract_risk_items(text, item.get("industryName") or item.get("indvInduName") or "")
+    if not risks and re.search(r"地缘政治|价格波动|不及预期|竞争加剧|政策变化", joined_text):
+        risks = ["需关注外部与经营风险"]
 
     trade_hint = []
     if positives:
@@ -279,6 +411,17 @@ def build_structured_analysis(item: Dict[str, Any], text: str, summary: List[str
     if not trade_hint:
         trade_hint.append("建议结合后续业绩兑现和同业比较再决定交易优先级")
 
+    theme_tags = infer_theme_tags(title, text, summary)
+    score, priority_bucket, score_reasons = score_report(
+        {
+            "positive_signals": positives,
+            "negative_signals": negatives,
+            "valuation_and_rating": valuation,
+            "risks": risks,
+            "theme_tags": theme_tags,
+        }
+    )
+
     return {
         "headline": statement,
         "core_drivers": drivers[:3],
@@ -288,6 +431,11 @@ def build_structured_analysis(item: Dict[str, Any], text: str, summary: List[str
         "trade_hint": trade_hint,
         "risks": risks or ["需结合原文风险提示进一步确认"],
         "title_signal": title,
+        "financial_signals": financial_signals,
+        "theme_tags": theme_tags,
+        "signal_score": score,
+        "priority_bucket": priority_bucket,
+        "score_reasons": score_reasons,
     }
 
 
@@ -326,6 +474,8 @@ def build_markdown(item: Dict[str, Any], text: str, summary: List[str], source: 
         f"- 估值/评级：{'；'.join(analysis['valuation_and_rating']) if analysis['valuation_and_rating'] else '[原文未显式提取]'}",
         f"- 交易含义：{'；'.join(analysis['trade_hint']) if analysis['trade_hint'] else '[无]'}",
         f"- 风险：{'；'.join(analysis['risks']) if analysis['risks'] else '[无]'}",
+        f"- 信号评分：`{analysis['signal_score']}` / `100`（优先级：`{analysis['priority_bucket']}`）",
+        f"- 主题标签：{'；'.join(analysis['theme_tags']) if analysis['theme_tags'] else '[无]'}",
         "",
         "---",
         "",
@@ -457,12 +607,16 @@ def write_csv_index(output_dir: Path, results: List[FetchResult]) -> Path:
                 "source",
                 "chars",
                 "summary",
+                "signalScore",
+                "priorityBucket",
+                "themeTags",
                 "file",
             ],
         )
         writer.writeheader()
         for result in results:
             item = result.item
+            structured = build_structured_analysis(item, result.text, result.summary)
             writer.writerow(
                 {
                     "stockName": item.get("stockName") or "",
@@ -477,6 +631,9 @@ def write_csv_index(output_dir: Path, results: List[FetchResult]) -> Path:
                     "source": result.source,
                     "chars": len(result.text),
                     "summary": " | ".join(result.summary),
+                    "signalScore": structured.get("signal_score", ""),
+                    "priorityBucket": structured.get("priority_bucket", ""),
+                    "themeTags": " | ".join(structured.get("theme_tags", [])),
                     "file": result.output_path.name if result.output_path else "",
                 }
             )
@@ -613,6 +770,8 @@ def write_day_summary(output_dir: Path, target_date: str, qtype: int, raw_list: 
         analysis_prompt_lines.append(f"  - 估值/评级：{'；'.join(entry['structured_analysis']['valuation_and_rating']) if entry['structured_analysis']['valuation_and_rating'] else '[无]'}")
         analysis_prompt_lines.append(f"  - 交易含义：{'；'.join(entry['structured_analysis']['trade_hint']) if entry['structured_analysis']['trade_hint'] else '[无]'}")
         analysis_prompt_lines.append(f"  - 风险：{'；'.join(entry['structured_analysis']['risks']) if entry['structured_analysis']['risks'] else '[无]'}")
+        analysis_prompt_lines.append(f"  - 信号评分：{entry['structured_analysis'].get('signal_score', '[无]')} / 100（优先级：{entry['structured_analysis'].get('priority_bucket', '[无]')}）")
+        analysis_prompt_lines.append(f"  - 主题标签：{'；'.join(entry['structured_analysis'].get('theme_tags', [])) if entry['structured_analysis'].get('theme_tags') else '[无]'}")
         analysis_prompt_lines.append("")
     (output_dir / "ANALYSIS_INPUT.md").write_text("\n".join(analysis_prompt_lines), encoding="utf-8")
 
@@ -649,7 +808,7 @@ def build_daily_brief(target_date: str, analysis_input: List[Dict[str, Any]]) ->
         org_counter[org] = org_counter.get(org, 0) + 1
         headlines.append(f"- `{entry.get('stockName') or industry}`：{analysis['headline']}")
         if analysis["trade_hint"]:
-            signals.append(f"- `{entry.get('stockName') or industry}`：{analysis['trade_hint'][0]}")
+            signals.append(f"- `{entry.get('stockName') or industry}`（score={analysis.get('signal_score', 0)} / {analysis.get('priority_bucket', 'C')}）：{analysis['trade_hint'][0]}")
 
     top_industries = sorted(industry_counter.items(), key=lambda item: item[1], reverse=True)[:5]
     top_orgs = sorted(org_counter.items(), key=lambda item: item[1], reverse=True)[:5]
@@ -688,11 +847,12 @@ def build_top_signals(target_date: str, analysis_input: List[Dict[str, Any]]) ->
     positive_names = []
     risk_names = []
     valuation_names = []
+    ranked = sorted(analysis_input, key=lambda entry: entry["structured_analysis"].get("signal_score", 0), reverse=True)
     for entry in analysis_input:
         analysis = entry["structured_analysis"]
         name = entry.get("stockName") or entry.get("industryName") or "未知标的"
         if analysis["positive_signals"]:
-            positive_names.append(f"- `{name}`：{'；'.join(analysis['positive_signals'])}")
+            positive_names.append(f"- `{name}`（score={analysis.get('signal_score', 0)}）：{'；'.join(analysis['positive_signals'])}")
         if analysis["risks"]:
             risk_names.append(f"- `{name}`：{'；'.join(analysis['risks'])}")
         if analysis["valuation_and_rating"]:
@@ -701,9 +861,18 @@ def build_top_signals(target_date: str, analysis_input: List[Dict[str, Any]]) ->
     lines = [
         f"# TOP_SIGNALS（{target_date}）",
         "",
-        "## 正向信号",
+        "## 综合优先级",
         "",
     ]
+    lines.extend([
+        f"- `{(entry.get('stockName') or entry.get('industryName') or '未知标的')}`：score={entry['structured_analysis'].get('signal_score', 0)}，优先级={entry['structured_analysis'].get('priority_bucket', 'C')}"
+        for entry in ranked[:10]
+    ] if ranked else ["- [无样本]"])
+    lines.extend([
+        "",
+        "## 正向信号",
+        "",
+    ])
     lines.extend(positive_names[:10] if positive_names else ["- [无明显集中正向信号]"])
     lines.extend(["", "## 估值 / 评级信号", ""])
     lines.extend(valuation_names[:10] if valuation_names else ["- [无显式估值/评级提取]"])
@@ -755,7 +924,7 @@ def build_theme_brief(target_date: str, analysis_input: List[Dict[str, Any]]) ->
     }
     grouped: Dict[str, List[str]] = {key: [] for key in theme_keywords}
     for entry in analysis_input:
-        joined = " ".join(entry.get("summary") or []) + " " + (entry.get("title") or "")
+        joined = " ".join(entry.get("summary") or []) + " " + (entry.get("title") or "") + " " + " ".join(entry["structured_analysis"].get("theme_tags") or [])
         name = entry.get("stockName") or entry.get("industryName") or "未知标的"
         for theme, pattern in theme_keywords.items():
             if re.search(pattern, joined):
