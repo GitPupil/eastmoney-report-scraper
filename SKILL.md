@@ -1,6 +1,6 @@
 ---
 name: eastmoney_report_scraper
-description: 基于东方财富研报中心网页与底层列表接口，按日期或日期区间批量拉取个股或行业研报列表，支持筛选、重试、断点续跑、PDF fallback、摘要生成与分析输入输出，并保存为 markdown、README、SUMMARY、ANALYSIS_INPUT、csv/xlsx 索引和 report_list.json。适用于历史研报批量采集、观点归档、机构跟踪与本地知识库构建。Batch scrape Eastmoney research reports by date/date range with filters, retries, resume, PDF fallback, summaries, analysis inputs, and csv/xlsx indexes.
+description: 基于东方财富研报中心网页与底层列表接口，按日期或日期区间批量拉取个股或行业研报列表，支持筛选、重试、断点续跑、PDF fallback、结构化分析、signal score、交易看板、并发抓取，以及 markdown / SUMMARY / ANALYSIS_INPUT / TRADING_DASHBOARD / csv/xlsx / report_list.json 等输出。Batch scrape Eastmoney research reports by date/date range with filters, retries, resume, PDF fallback, structured analysis, scoring, dashboard outputs, and csv/xlsx/json indexes.
 metadata:
   {
     "openclaw": {
@@ -19,8 +19,26 @@ metadata:
 
 # 东方财富研报批量采集
 
-这个 skill 对应的是之前那套 **“列表 API 拿 `infoCode` → 详情页抓 HTML 正文 → 必要时 PDF fallback → 本地落盘”** 的 workflow，
+这个 skill 对应的是 **“列表 API 拿 `infoCode` → 详情页抓 HTML 正文 → 必要时 PDF fallback → 本地落盘 → 结构化分析与交易化汇总”** 的 workflow，
 不是妙想 `searchNews` 检索接口。
+
+## 当前状态
+
+当前已进入 **v1.5 alpha** 阶段。
+
+已具备：
+
+- 批量抓取个股 / 行业研报
+- 多条件筛选
+- 重试与断点续跑
+- PDF fallback
+- 单篇结构化分析
+- 多篇横向归纳
+- signal score / priority bucket
+- `TRADING_DASHBOARD.md`
+- `Sector Heat / Theme Heat`
+- `--concurrency` 并发详情抓取
+- richer csv 导出字段
 
 ## 已实现版本
 
@@ -70,36 +88,58 @@ metadata:
   - 行业分组
   - 主题分组
 
+### v1.5 alpha（当前）
+- 风险提取增强
+- 基于财务信号的结构化分析
+- `signal_score` 与 `priority_bucket`
+- richer valuation fields：
+  - `ratingChange`
+  - `targetPrice`
+  - `epsForecast`
+  - `peForecast`
+- 自动生成 `TRADING_DASHBOARD.md`
+- 看板新增：
+  - `Sector Heat`
+  - `Theme Heat`
+  - `Active Brokers`
+- 支持 `--concurrency` 控制详情页并发抓取
+
 ## 快速开始
 
 ### 单日全量
 
 ```bash
-python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-11
+python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12
+```
+
+### 单日 + 并发抓取
+
+```bash
+python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --concurrency 2
 ```
 
 ### 单日 + 股票筛选
 
 ```bash
-python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-11 --stock 润本股份
+python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --stock 润本股份
 ```
 
 ### 单日 + 机构筛选
 
 ```bash
-python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-11 --org 中邮证券 --org 国泰海通
+python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --org 中邮证券 --org 国泰海通
 ```
 
 ### 单日 + 行业筛选 + 小样本
 
 ```bash
-python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-11 --industry 化学制药 --limit 5
+python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --industry 化学制药 --limit 5
 ```
 
 ### 日期区间 + 增量更新
 
 ```bash
-python3 {baseDir}/scripts/fetch_reports.py --start-date 2026-05-09 --end-date 2026-05-11
+python3 {baseDir}/scripts/fetch_reports.py --start-date 2026-05-09 --end-date 2026-05-12
 ```
 
 ## 参数说明
@@ -111,14 +151,16 @@ python3 {baseDir}/scripts/fetch_reports.py --start-date 2026-05-09 --end-date 20
 | `--end-date` | 区间结束日期 |
 | `--limit` | 每个日期仅抓前 N 篇 |
 | `--qtype` | `0=个股研报`，`1=行业研报` |
+| `--page-size` | 列表接口页大小 |
+| `--delay` | 每篇详情页抓取间隔秒数 |
+| `--timeout` | HTTP 超时秒数 |
+| `--retries` | 列表/详情重试次数 |
+| `--retry-delay` | 重试间隔秒数 |
+| `--concurrency` | 详情页并发抓取 worker 数 |
 | `--stock` | 按股票名/代码筛选，可重复传 |
 | `--org` | 按机构筛选，可重复传 |
 | `--rating` | 按评级筛选，可重复传 |
 | `--industry` | 按行业筛选，可重复传 |
-| `--delay` | 每篇详情页抓取间隔秒数，默认 `0.3` |
-| `--timeout` | HTTP 超时秒数，默认 `20` |
-| `--retries` | 列表/详情重试次数，默认 `2` |
-| `--retry-delay` | 重试间隔秒数，默认 `1.0` |
 | `--force` | 忽略已抓文件，强制重抓 |
 | `--no-pdf-fallback` | 禁用 PDF fallback |
 | `--no-xlsx` | 跳过 xlsx 索引导出 |
@@ -129,8 +171,8 @@ python3 {baseDir}/scripts/fetch_reports.py --start-date 2026-05-09 --end-date 20
 
 ```text
 eastmoney_reports/
-└── 研报_2026-05-11/
-    ├── 001——润本股份——点评报告：2026Q1业绩快速增长，驱蚊产品表现优异.md
+└── 研报_2026-05-12/
+    ├── 001——某公司——某标题.md
     ├── README.md
     ├── SUMMARY.md
     ├── ANALYSIS_INPUT.md
@@ -139,6 +181,7 @@ eastmoney_reports/
     ├── TOP_SIGNALS.md
     ├── SECTOR_BRIEF.md
     ├── THEME_BRIEF.md
+    ├── TRADING_DASHBOARD.md
     ├── report_list.json
     ├── report_index.csv
     ├── report_index.xlsx
@@ -149,11 +192,12 @@ eastmoney_reports/
 
 ```text
 eastmoney_reports/
-└── 研报_2026-05-09_to_2026-05-11/
+└── 研报_2026-05-09_to_2026-05-12/
     ├── RANGE_SUMMARY.md
     ├── 研报_2026-05-09/
     ├── 研报_2026-05-10/
-    └── 研报_2026-05-11/
+    ├── 研报_2026-05-11/
+    └── 研报_2026-05-12/
 ```
 
 ## 自动摘要与二次分析
@@ -161,12 +205,14 @@ eastmoney_reports/
 - `SUMMARY.md`：规则版摘要汇总
 - `ANALYSIS_INPUT.md`：适合直接继续做 AI 分析
 - `ANALYSIS_INPUT.json`：适合程序化二次处理
+- `TRADING_DASHBOARD.md`：适合先看当日交易优先级和热度
 
 推荐工作流：
 
 1. 先抓取与摘要
-2. 再读取 `ANALYSIS_INPUT.md`
-3. 继续输出：
+2. 先看 `TRADING_DASHBOARD.md`
+3. 再读取 `SUMMARY.md` / `ANALYSIS_INPUT.md`
+4. 继续输出：
    - 单篇核心结论
    - 多篇共识主线
    - 券商分歧点
@@ -178,5 +224,6 @@ eastmoney_reports/
 - 这是 **页面抓取型** workflow，不是稳定的官方内容 API
 - `PDF fallback` 依赖系统存在 `pdftotext`
 - `xlsx` 导出依赖 `openpyxl`
-- 当前筛选是本地结果过滤，不是请求端精准 query
-- 当前仍是串行抓取，主要强调稳健而非极限速度
+- 当前筛选主要是抓取后本地过滤，不是请求端精准 query
+- 当前并发主要用于详情页抓取，进度输出可能按完成顺序出现
+- 当前仍是单文件脚本主导，尚未完全模块化
