@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eastmoney-report-scraper"
+version = "0.1.0"
+description = "Research-oriented scraper for Eastmoney research reports"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+  { name = "GitPupil" }
+]
+keywords = ["eastmoney", "research-report", "scraper", "finance"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Financial and Insurance Industry",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Office/Business :: Financial",
+  "Topic :: Software Development :: Libraries :: Python Modules"
+]
+dependencies = []
+
+[project.optional-dependencies]
+xlsx = ["openpyxl>=3.1"]
+dev = [
+  "openpyxl>=3.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/GitPupil/eastmoney-report-scraper"
+Repository = "https://github.com/GitPupil/eastmoney-report-scraper"
+Issues = "https://github.com/GitPupil/eastmoney-report-scraper/issues"
+
+[project.scripts]
+eastmoney-report-scraper = "scripts.fetch_reports:main"
+
+[tool.setuptools]
+py-modules = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["eastmoney_reports*"]

@@ -30,6 +30,7 @@ See also:
 
 - [ROADMAP.md](./ROADMAP.md)
 - [TODO.md](./TODO.md)
+- [DEVELOPMENT.md](./DEVELOPMENT.md)
 
 ## Repository Structure
 
@@ -108,10 +109,32 @@ This project is a **page-scraping workflow**, not an official stable content API
 - `pdftotext` for PDF fallback
 - `openpyxl` for XLSX export
 
-Install XLSX dependency:
+Install runtime dependency:
+
+```bash
+pip install -r requirements.txt
+```
+
+Or install the optional XLSX dependency directly:
 
 ```bash
 pip install openpyxl
+```
+
+## Installation
+
+### Option 1: Run directly from the repository
+
+```bash
+git clone https://github.com/GitPupil/eastmoney-report-scraper.git
+cd eastmoney-report-scraper
+pip install -r requirements.txt
+```
+
+### Option 2: Use standard Python project metadata
+
+```bash
+pip install .
 ```
 
 ## Quick Start

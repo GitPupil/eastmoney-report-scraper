@@ -30,6 +30,7 @@
 
 - [ROADMAP.md](./ROADMAP.md)
 - [TODO.md](./TODO.md)
+- [DEVELOPMENT.md](./DEVELOPMENT.md)
 
 ## 仓库结构
 
@@ -108,10 +109,32 @@
 - `pdftotext`：用于 PDF fallback
 - `openpyxl`：用于导出 XLSX
 
-安装 XLSX 导出依赖：
+安装运行依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+也可以直接安装 XLSX 导出依赖：
 
 ```bash
 pip install openpyxl
+```
+
+## 安装
+
+### 方式一：直接从仓库运行
+
+```bash
+git clone https://github.com/GitPupil/eastmoney-report-scraper.git
+cd eastmoney-report-scraper
+pip install -r requirements.txt
+```
+
+### 方式二：按标准 Python 项目安装
+
+```bash
+pip install .
 ```
 
 ## 快速开始
