@@ -255,7 +255,7 @@ def build_headline(item: Dict[str, Any], text: str, summary: List[str], financia
     stock_name = item.get("stockName") or item.get("industryName") or "该标的"
     if summary:
         lead = re.sub(r"^(事件|投资要点|核心观点|盈利预测与投资建议|投资建议|风险提示)[：:]?", "", summary[0]).strip()
-        if len(lead) <= 90:
+        if len(lead) <= 90 and "风险提示" not in summary[0]:
             return lead
     signal_parts = []
     for key in ("revenue", "profit", "margin", "demand"):
@@ -265,6 +265,28 @@ def build_headline(item: Dict[str, Any], text: str, summary: List[str], financia
         return f"{stock_name}：{'，'.join(signal_parts[:3])}"
     sentences = split_sentences(text)
     return sentences[0][:90] if sentences else "[无有效结论]"
+
+
+def extract_core_drivers(summary: List[str], text: str) -> List[str]:
+    drivers: List[str] = []
+    for bullet in summary:
+        if bullet.startswith("风险提示："):
+            continue
+        cleaned = re.sub(r"^(事件|投资要点|核心观点|盈利预测与投资建议|投资建议)[：:]?", "", bullet).strip()
+        if cleaned and cleaned not in drivers:
+            drivers.append(cleaned)
+    sections = extract_sections(text)
+    for key in ("投资要点", "核心观点", "盈利预测与投资建议", "投资建议"):
+        for line in sections.get(key, []):
+            if "风险" in line:
+                continue
+            if line and line not in drivers:
+                drivers.append(line)
+            if len(drivers) >= 3:
+                break
+        if len(drivers) >= 3:
+            break
+    return drivers[:3]
 
 
 def extract_numeric_series(text: str, label: str, unit: str) -> List[str]:
@@ -346,6 +368,19 @@ def score_report(analysis: Dict[str, Any]) -> Tuple[int, str, List[str]]:
     if negative_count:
         score -= min(negative_count * 6, 18)
         reasons.append("存在负向经营/景气信号")
+    financial_signals = analysis.get("financial_signals") or {}
+    if financial_signals.get("profit") == "利润承压":
+        score -= 8
+        reasons.append("利润端仍承压")
+    elif financial_signals.get("profit") == "利润改善":
+        score += 6
+        reasons.append("利润改善较明确")
+    if financial_signals.get("revenue") == "收入承压":
+        score -= 4
+        reasons.append("收入端承压")
+    elif financial_signals.get("revenue") == "收入增长":
+        score += 4
+        reasons.append("收入保持增长")
     valuation_text = "；".join(analysis.get("valuation_and_rating") or [])
     valuation_fields = analysis.get("valuation_fields") or {}
     if "评级：买入" in valuation_text:
@@ -363,13 +398,17 @@ def score_report(analysis: Dict[str, Any]) -> Tuple[int, str, List[str]]:
     if any(tag in (analysis.get("theme_tags") or []) for tag in ("业绩增长", "利润修复", "景气改善")):
         score += 6
         reasons.append("具备可交易主题标签")
-    if len(analysis.get("risks") or []) >= 3:
-        score -= 4
+    risk_count = len(analysis.get("risks") or [])
+    if risk_count >= 3:
+        score -= 6
         reasons.append("风险提示较多")
+    if financial_signals.get("profit") == "利润承压" and risk_count >= 2:
+        score -= 4
+        reasons.append("利润与风险共振偏负面")
     score = max(0, min(100, score))
-    if score >= 70:
+    if score >= 74:
         bucket = "A"
-    elif score >= 58:
+    elif score >= 62:
         bucket = "B"
     elif score >= 45:
         bucket = "C"
@@ -439,7 +478,9 @@ def build_structured_analysis(item: Dict[str, Any], text: str, summary: List[str
 
     financial_signals = extract_financial_signals(text, summary)
     statement = build_headline(item, text, summary, financial_signals)
-    drivers = summary[1:3] if len(summary) > 1 else ([] if not summary else [statement])
+    drivers = extract_core_drivers(summary, text)
+    if not drivers and statement:
+        drivers = [statement]
 
     positives: List[str] = []
     negatives: List[str] = []
@@ -475,6 +516,7 @@ def build_structured_analysis(item: Dict[str, Any], text: str, summary: List[str
             "valuation_fields": valuation_fields,
             "risks": risks,
             "theme_tags": theme_tags,
+            "financial_signals": financial_signals,
         }
     )
 
