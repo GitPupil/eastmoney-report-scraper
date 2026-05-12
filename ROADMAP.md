@@ -1,5 +1,18 @@
 # eastmoney-report-scraper Roadmap
 
+## v2.0 Landed
+
+- modular package layout
+- compatibility script entrypoint
+- parser / analysis / scoring / exporter separation
+- run manifest for weak/error resume workflows
+- text quality scoring for extraction selection
+- score reasons and score breakdown exports
+- consensus and range dashboards
+- pytest regression tests and ruff dev dependency
+
+---
+
 ## v1.5 Goal
 
 Upgrade the scraper from a basic collection tool into a more reliable research workflow tool:
@@ -33,25 +46,22 @@ Upgrade the scraper from a basic collection tool into a more reliable research w
 - improve consistency between risks, score, and trade hints
 
 ### 2. Resume / batch improvements
-- re-fetch weak outputs
-- support `--resume-errors-only`
-- support minimum text length threshold
-- support jitter / throttling controls for concurrency
+- continue calibrating weak/error resume behavior on real runs
+- add richer throttling presets for concurrency
 
 ### 3. Extraction robustness
-- improve section detection quality
-- improve HTML vs PDF selection logic
+- continue improving section detection quality
+- calibrate HTML vs PDF quality selection logic
 - reduce noisy summary bullets
 - add stronger handling for malformed pages
 
 ### 4. Research usability
-- add same-stock multi-broker coverage summary
-- add consensus / divergence summary for repeated coverage
+- deepen same-stock multi-broker coverage summary
+- deepen consensus / divergence summary for repeated coverage
 - improve cross-day synthesis for date-range runs
 
 ### 5. Engineering
-- split the script into internal modules
-- add tests and regression fixtures
+- expand tests and regression fixtures
 - add CI for syntax / smoke validation
 
 ---
@@ -69,6 +79,5 @@ Upgrade the scraper from a basic collection tool into a more reliable research w
 - stronger range-level synthesis
 
 ### Milestone C: Codebase structure
-- extract parser / analysis / exporter modules
-- add tests
+- expand parser / analysis / exporter fixtures
 - add CI

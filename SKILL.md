@@ -1,6 +1,6 @@
 ---
 name: eastmoney_report_scraper
-description: 基于东方财富研报中心网页与底层列表接口，按日期或日期区间批量拉取个股或行业研报列表，支持筛选、重试、断点续跑、PDF fallback、结构化分析、signal score、交易看板、并发抓取，以及 markdown / SUMMARY / ANALYSIS_INPUT / TRADING_DASHBOARD / csv/xlsx / report_list.json 等输出。Batch scrape Eastmoney research reports by date/date range with filters, retries, resume, PDF fallback, structured analysis, scoring, dashboard outputs, and csv/xlsx/json indexes.
+description: 基于东方财富研报中心网页与底层列表接口，按日期或日期区间批量拉取个股或行业研报列表，支持筛选、重试、断点续跑、manifest、PDF fallback、结构化分析、signal score、评分拆解、交易看板、共识简报、并发抓取，以及 markdown / SUMMARY / ANALYSIS_INPUT / TRADING_DASHBOARD / CONSENSUS_BRIEF / csv/xlsx / report_list.json 等输出。Batch scrape Eastmoney research reports by date/date range with filters, retries, resume, manifest, PDF fallback, structured analysis, scoring, dashboard and consensus outputs, and csv/xlsx/json indexes.
 metadata:
   {
     "openclaw": {
@@ -24,7 +24,7 @@ metadata:
 
 ## 当前状态
 
-当前已进入 **v1.5 alpha** 阶段。
+当前已进入 **v2.0** 阶段。
 
 已具备：
 
@@ -39,6 +39,13 @@ metadata:
 - `Sector Heat / Theme Heat`
 - `--concurrency` 并发详情抓取
 - richer csv 导出字段
+- 模块化包结构
+- `run_manifest.jsonl`
+- 文本质量评分
+- `scoreReasons` / `scoreBreakdown`
+- `CONSENSUS_BRIEF.md`
+- 区间任务 `RANGE_DASHBOARD.md`
+- `--refresh-weak` / `--resume-errors-only` / `--min-text-length` / `--jitter`
 
 ## 已实现版本
 
@@ -88,7 +95,7 @@ metadata:
   - 行业分组
   - 主题分组
 
-### v1.5 alpha（当前）
+### v1.5 alpha
 - 风险提取增强
 - 基于财务信号的结构化分析
 - `signal_score` 与 `priority_bucket`
@@ -103,6 +110,17 @@ metadata:
   - `Theme Heat`
   - `Active Brokers`
 - 支持 `--concurrency` 控制详情页并发抓取
+
+### v2.0（当前）
+- 核心逻辑拆分到 `eastmoney_report_scraper/`
+- `scripts/fetch_reports.py` 保持兼容入口
+- `run_manifest.jsonl` 记录状态、来源、质量分、错误和输出文件
+- HTML 结构化解析，缺少 BeautifulSoup 时回退基础解析
+- HTML / PDF 按文本质量分选择
+- 评分原因与评分拆解导出
+- 自动生成 `CONSENSUS_BRIEF.md`
+- 区间任务自动生成 `RANGE_DASHBOARD.md`
+- 新增弱结果 / 错误结果续跑和请求 jitter 参数
 
 ## 快速开始
 
@@ -164,6 +182,11 @@ python3 {baseDir}/scripts/fetch_reports.py --start-date 2026-05-09 --end-date 20
 | `--force` | 忽略已抓文件，强制重抓 |
 | `--no-pdf-fallback` | 禁用 PDF fallback |
 | `--no-xlsx` | 跳过 xlsx 索引导出 |
+| `--refresh-weak` | 仅重抓历史弱提取结果 |
+| `--resume-errors-only` | 仅重试历史失败结果 |
+| `--min-text-length` | 低于该正文长度时标记为 weak |
+| `--jitter` | 为详情页请求增加随机等待秒数 |
+| `--manifest-name` | 自定义运行状态文件名 |
 
 ## 输出结构
 
@@ -182,7 +205,9 @@ eastmoney_reports/
     ├── SECTOR_BRIEF.md
     ├── THEME_BRIEF.md
     ├── TRADING_DASHBOARD.md
+    ├── CONSENSUS_BRIEF.md
     ├── report_list.json
+    ├── run_manifest.jsonl
     ├── report_index.csv
     ├── report_index.xlsx
     └── run.log.jsonl
@@ -194,6 +219,7 @@ eastmoney_reports/
 eastmoney_reports/
 └── 研报_2026-05-09_to_2026-05-12/
     ├── RANGE_SUMMARY.md
+    ├── RANGE_DASHBOARD.md
     ├── 研报_2026-05-09/
     ├── 研报_2026-05-10/
     ├── 研报_2026-05-11/
@@ -226,4 +252,4 @@ eastmoney_reports/
 - `xlsx` 导出依赖 `openpyxl`
 - 当前筛选主要是抓取后本地过滤，不是请求端精准 query
 - 当前并发主要用于详情页抓取，进度输出可能按完成顺序出现
-- 当前仍是单文件脚本主导，尚未完全模块化
+- 当前已模块化，结构化分析仍为规则驱动，适合研究初筛和归档

@@ -12,13 +12,20 @@
 - [x] sector / theme heat in dashboard
 - [x] `--concurrency`
 - [x] richer CSV export schema
+- [x] v2 package layout
+- [x] `run_manifest.jsonl`
+- [x] text quality score
+- [x] score breakdown export
+- [x] `CONSENSUS_BRIEF.md`
+- [x] `RANGE_DASHBOARD.md`
+- [x] pytest regression tests
 
 ## Remaining Work
 
 ### Parsing
-- [ ] improve HTML section detection stability
+- [x] improve HTML section detection stability
 - [ ] add PDF text cleaning improvements
-- [ ] add HTML vs PDF quality selection / merge strategy
+- [x] add HTML vs PDF quality selection / merge strategy
 - [ ] further reduce noisy summary bullets
 
 ### Analysis
@@ -26,23 +33,23 @@
 - [ ] compress core drivers into cleaner research-style expressions
 - [ ] improve theme tag precision
 - [ ] improve consistency between signals, risks, and score
-- [ ] add same-stock multi-broker aggregation
+- [x] add same-stock multi-broker aggregation
 
 ### Scoring
 - [ ] continue calibrating score thresholds
-- [ ] add more explicit score breakdown export
+- [x] add more explicit score breakdown export
 - [ ] distinguish recovery-driven vs quality-growth-driven ideas better
 
 ### Resume / Batch
-- [ ] add `--refresh-weak`
-- [ ] add `--resume-errors-only`
-- [ ] add `--min-text-length`
-- [ ] add optional request jitter / throttling
+- [x] add `--refresh-weak`
+- [x] add `--resume-errors-only`
+- [x] add `--min-text-length`
+- [x] add optional request jitter / throttling
 
 ### Engineering
-- [ ] split monolithic script into internal modules
-- [ ] add parser tests
-- [ ] add analysis tests
-- [ ] add scoring tests
+- [x] split monolithic script into internal modules
+- [x] add parser tests
+- [x] add analysis tests
+- [x] add scoring tests
 - [ ] prepare regression sample set
 - [ ] add CI / smoke checks

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- v2 package layout under `eastmoney_report_scraper/`
+- compatibility wrapper in `scripts/fetch_reports.py`
+- `run_manifest.jsonl` run state tracking
+- text quality scoring for HTML/PDF selection
+- `scoreReasons`, `scoreBreakdown`, and `qualityScore` exports
+- `CONSENSUS_BRIEF.md`
+- date-range `RANGE_DASHBOARD.md`
+- CLI args:
+  - `--refresh-weak`
+  - `--resume-errors-only`
+  - `--min-text-length`
+  - `--jitter`
+  - `--manifest-name`
+- pytest regression tests
+- `beautifulsoup4`, `pytest`, and `ruff` dependencies
 - formalized project documentation in `README.md`
 - standalone Chinese documentation in `README.zh-CN.md`
 - `ROADMAP.md` for v1.5 planning
@@ -28,6 +43,9 @@ All notable changes to this project will be documented in this file.
   - `peForecast`
 
 ### Changed
+- moved scraper internals out of the monolithic script into modules
+- upgraded HTML parsing to use BeautifulSoup when available, with regex fallback
+- made scoring output more transparent
 - improved structured analysis quality
 - refined risk extraction logic
 - added signal score and priority bucket

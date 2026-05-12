@@ -40,6 +40,7 @@ Recommended minimum validation after changes:
 ```bash
 python3 -m py_compile scripts/fetch_reports.py
 python3 scripts/fetch_reports.py --help
+python3 -m pytest -q
 python3 scripts/fetch_reports.py --date 2026-05-12 --limit 2 --output-dir /tmp/eastmoney_check
 ```
 
@@ -50,27 +51,24 @@ Check that at least these outputs exist:
 - `TOP_SIGNALS.md`
 - `TRADING_DASHBOARD.md`
 - `report_index.csv`
+- `run_manifest.jsonl`
+- `CONSENSUS_BRIEF.md`
 
 ## Current Codebase Shape
 
 A `pyproject.toml` is included so the repository has a standard Python project shape.
-The implementation is still script-first and centered on:
+The v2 implementation keeps `scripts/fetch_reports.py` as a compatibility entrypoint and moves core logic into:
 
-- `scripts/fetch_reports.py`
-
-The script currently contains logic for:
-
-- HTTP fetch and retry
-- HTML / PDF extraction
-- summary and risk extraction
-- structured analysis and scoring
-- export generation
-- concurrency orchestration
+- `eastmoney_report_scraper/client.py`
+- `eastmoney_report_scraper/parser.py`
+- `eastmoney_report_scraper/analysis.py`
+- `eastmoney_report_scraper/scoring.py`
+- `eastmoney_report_scraper/exporters.py`
+- `eastmoney_report_scraper/cli.py`
 
 ## Recommended Next Engineering Steps
 
-- split parser / analysis / exporter into internal modules
-- add automated tests for parsing and analysis
+- add more regression fixtures for parsing and analysis
 - add lint / format tooling
 - add CI for syntax / smoke validation
-- add regression fixtures for representative report samples
+- calibrate quality scoring and signal scoring on real report samples

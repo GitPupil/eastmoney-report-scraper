@@ -21,6 +21,7 @@ It collects stock and industry reports by date or date range, extracts report co
 
 Current implemented line:
 
+- **v2.0** modular package, tests, manifest, quality score, score breakdown, and consensus outputs
 - **v1.1** stability improvements
 - **v1.2** research workflow outputs
 - **v1.3** single-report structured analysis
@@ -36,6 +37,17 @@ Current v1.5 alpha additions include:
 - `TRADING_DASHBOARD.md`
 - sector/theme heat sections
 - controlled concurrent detail fetch via `--concurrency`
+
+Current v2.0 additions include:
+
+- modular package layout: `client / parser / analysis / scoring / exporters / cli`
+- `run_manifest.jsonl` run state tracking
+- structured HTML parsing and text quality scoring
+- `scoreReasons` / `scoreBreakdown` exports
+- `CONSENSUS_BRIEF.md`
+- date-range `RANGE_DASHBOARD.md`
+- `--refresh-weak`, `--resume-errors-only`, `--min-text-length`, `--jitter`, and `--manifest-name`
+- pytest regression tests and ruff dev dependency
 
 See also:
 
@@ -58,9 +70,17 @@ See also:
 ├── pyproject.toml
 ├── requirements.txt
 ├── requirements-dev.txt
-└── scripts/
-    ├── __init__.py
-    └── fetch_reports.py
+├── eastmoney_report_scraper/
+│   ├── client.py
+│   ├── parser.py
+│   ├── analysis.py
+│   ├── scoring.py
+│   ├── exporters.py
+│   └── cli.py
+├── scripts/
+│   ├── __init__.py
+│   └── fetch_reports.py
+└── tests/
 ```
 
 ## How It Works
@@ -98,7 +118,7 @@ This project is a **page-scraping workflow**, not an official stable content API
 - Retry for list-page failures
 - Retry for detail-page failures
 - Structured run log in `run.log.jsonl`
-- Resume from existing markdown outputs
+- Resume from existing markdown outputs and `run_manifest.jsonl`
 - Optional force re-fetch
 - PDF fallback for weak HTML extraction
 - Controlled concurrent detail fetch with `--concurrency`
@@ -115,7 +135,9 @@ This project is a **page-scraping workflow**, not an official stable content API
 - `SECTOR_BRIEF.md`
 - `THEME_BRIEF.md`
 - `TRADING_DASHBOARD.md`
+- `CONSENSUS_BRIEF.md`
 - `report_list.json`
+- `run_manifest.jsonl`
 - `report_index.csv`
 - `report_index.xlsx` (optional)
 
@@ -132,6 +154,8 @@ Current structured output includes:
 - theme tags
 - signal score
 - priority bucket
+- score reasons and score breakdown
+- text quality score
 
 ## Requirements
 
@@ -233,6 +257,11 @@ python3 scripts/fetch_reports.py --date 2026-05-12 --qtype 1 --industry 化学�
 | `--force` | Force re-fetch even if markdown already exists |
 | `--no-pdf-fallback` | Disable PDF fallback |
 | `--no-xlsx` | Skip XLSX export |
+| `--refresh-weak` | Re-fetch previously weak outputs |
+| `--resume-errors-only` | Retry only previous errors |
+| `--min-text-length` | Mark extracted text below this length as weak |
+| `--jitter` | Add random extra delay to detail requests |
+| `--manifest-name` | Customize run manifest file name |
 
 ## Output Layout
 
@@ -251,7 +280,9 @@ eastmoney_reports/
     ├── SECTOR_BRIEF.md
     ├── THEME_BRIEF.md
     ├── TRADING_DASHBOARD.md
+    ├── CONSENSUS_BRIEF.md
     ├── report_list.json
+    ├── run_manifest.jsonl
     ├── report_index.csv
     ├── report_index.xlsx
     └── run.log.jsonl
@@ -263,6 +294,7 @@ eastmoney_reports/
 eastmoney_reports/
 └── 研报_2026-05-09_to_2026-05-12/
     ├── RANGE_SUMMARY.md
+    ├── RANGE_DASHBOARD.md
     ├── 研报_2026-05-09/
     ├── 研报_2026-05-10/
     ├── 研报_2026-05-11/
@@ -285,7 +317,7 @@ eastmoney_reports/
 - XLSX export depends on `openpyxl`
 - Current filtering is mostly local post-fetch filtering
 - Current concurrency is detail-fetch oriented and progress logs may appear out of order
-- Current implementation is still script-first and not yet fully modularized
+- Current structured analysis is rule-based and intended for screening / organization, not investment advice
 
 ## Disclaimer
 
