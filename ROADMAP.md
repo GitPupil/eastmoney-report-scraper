@@ -8,105 +8,67 @@ Upgrade the scraper from a basic collection tool into a more reliable research w
 - better risk extraction
 - transaction-oriented ranking and summaries
 - stronger resume / batch handling
+- more practical engineering ergonomics
 
 ---
 
-## P0 (Must Have)
+## Already Landed in v1.5 Alpha
 
-### 1. Structured analysis refactor
-- replace coarse full-text keyword tagging
-- split output into clearer fields:
-  - headline
-  - core drivers
-  - revenue / profit / margin view
-  - valuation / rating
-  - trade hint
-  - risks
-- reduce contradictory positive/negative labeling
-
-### 2. Risk extraction fix
-- extract only from explicit risk sections
-- reduce cross-company / cross-industry contamination
-- mark missing risk sections clearly
-
-### 3. Signal score
-- add rule-based signal scoring
-- rank reports by trading relevance
-- generate top ideas / top risks / top deep-dive candidates
-
-### 4. Rating / target price / forecast extraction
-- extract rating
-- detect rating change
-- detect first coverage
-- extract target price / EPS / PE
-
-### 5. Richer exports
-- extend CSV / JSON fields with:
-  - signal score
-  - rating change
-  - target price
-  - EPS / PE forecasts
-  - theme tags
-  - risk tags
+- refined risk extraction
+- financial-signal-based structured analysis
+- signal score and priority bucket
+- richer valuation exports
+- `TRADING_DASHBOARD.md`
+- dashboard sector/theme heat
+- controlled concurrent detail fetch via `--concurrency`
 
 ---
 
-## P1 (Should Have)
+## Remaining P0 / P1 Work
 
-### 6. Controlled concurrency
-- add `--concurrency`
-- concurrent detail fetch with retry / jitter / fallback
+### 1. Analysis quality refinement
+- continue improving headline quality
+- compress core drivers into cleaner research-style bullets
+- reduce false-positive theme tags
+- improve consistency between risks, score, and trade hints
 
-### 7. Stronger resume
+### 2. Resume / batch improvements
 - re-fetch weak outputs
 - support `--resume-errors-only`
 - support minimum text length threshold
+- support jitter / throttling controls for concurrency
 
-### 8. Trading dashboard
-- add `TRADING_DASHBOARD.md`
-- summarize:
-  - headline
-  - strongest longs
-  - biggest risks
-  - sector heat
-  - broker activity
+### 3. Extraction robustness
+- improve section detection quality
+- improve HTML vs PDF selection logic
+- reduce noisy summary bullets
+- add stronger handling for malformed pages
 
-### 9. Better HTML/PDF selection
-- compare HTML and PDF text quality
-- choose best source or merge
-- clean PDF noise better
+### 4. Research usability
+- add same-stock multi-broker coverage summary
+- add consensus / divergence summary for repeated coverage
+- improve cross-day synthesis for date-range runs
 
----
-
-## P2 (Nice to Have)
-
-### 10. Watchlist / theme mode
-- watch specific stocks / sectors / brokers
-- generate watchlist-focused daily outputs
-
-### 11. Multi-day consensus analysis
-- cross-day sector heat
-- repeated broker coverage
-- rising keywords / themes
-
-### 12. Request-side filtering research
-- see whether Eastmoney list API supports better upstream filters
+### 5. Engineering
+- split the script into internal modules
+- add tests and regression fixtures
+- add CI for syntax / smoke validation
 
 ---
 
-## Suggested Milestones
+## Suggested Next Milestones
 
-### Milestone A: Correctness
-- structured analysis refactor
-- risk extraction fix
-- valuation / rating field extraction
+### Milestone A: Stabilize v1.5 alpha
+- improve score calibration
+- tighten summary / driver extraction
+- add jitter / better concurrency controls
 
-### Milestone B: Research usability
-- signal scoring
-- richer CSV / JSON
-- trading dashboard
+### Milestone B: Research depth
+- multi-broker consensus view
+- repeated coverage statistics
+- stronger range-level synthesis
 
-### Milestone C: Engineering
-- concurrency
-- stronger resume
-- better PDF handling
+### Milestone C: Codebase structure
+- extract parser / analysis / exporter modules
+- add tests
+- add CI

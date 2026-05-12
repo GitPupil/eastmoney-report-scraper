@@ -4,7 +4,7 @@ English | [简体中文](./README.zh-CN.md)
 
 A research-oriented scraper for Eastmoney research reports.
 
-It collects stock and industry reports by date or date range, extracts report content from Eastmoney pages, falls back to PDF when needed, and exports structured local research artifacts including markdown reports, summaries, analysis inputs, and index files.
+It collects stock and industry reports by date or date range, extracts report content from Eastmoney pages, falls back to PDF when needed, and exports structured local research artifacts including markdown reports, summaries, dashboards, and index files.
 
 ## Highlights
 
@@ -14,7 +14,8 @@ It collects stock and industry reports by date or date range, extracts report co
 - Retry list/detail requests automatically
 - Resume from existing markdown outputs
 - Use **PDF fallback** when HTML extraction is weak
-- Generate research artifacts for both reading and downstream AI/programmatic analysis
+- Support **concurrent detail fetch** with `--concurrency`
+- Generate research artifacts for reading, AI analysis, and trading-style review
 
 ## Project Status
 
@@ -24,12 +25,23 @@ Current implemented line:
 - **v1.2** research workflow outputs
 - **v1.3** single-report structured analysis
 - **v1.4** multi-report daily aggregation
-- **v1.5** planned: stronger analysis quality, scoring, richer exports, better resume/concurrency
+- **v1.5 alpha** analysis/scoring/dashboard/concurrency foundation has landed
+
+Current v1.5 alpha additions include:
+
+- refined risk extraction
+- financial-signal-based structured analysis
+- signal score and priority bucket
+- richer valuation exports (`ratingChange`, `targetPrice`, `epsForecast`, `peForecast`)
+- `TRADING_DASHBOARD.md`
+- sector/theme heat sections
+- controlled concurrent detail fetch via `--concurrency`
 
 See also:
 
 - [ROADMAP.md](./ROADMAP.md)
 - [TODO.md](./TODO.md)
+- [CHANGELOG.md](./CHANGELOG.md)
 - [DEVELOPMENT.md](./DEVELOPMENT.md)
 
 ## Repository Structure
@@ -39,9 +51,15 @@ See also:
 ├── SKILL.md
 ├── README.md
 ├── README.zh-CN.md
+├── CHANGELOG.md
 ├── ROADMAP.md
 ├── TODO.md
+├── DEVELOPMENT.md
+├── pyproject.toml
+├── requirements.txt
+├── requirements-dev.txt
 └── scripts/
+    ├── __init__.py
     └── fetch_reports.py
 ```
 
@@ -53,7 +71,8 @@ The scraper follows this workflow:
 2. Fetch the HTML detail page for each report
 3. Extract main text content from the HTML page
 4. If HTML extraction is too weak, try **PDF fallback**
-5. Generate local outputs including report markdown, summaries, indexes, and daily briefs
+5. Build structured summary / signals / risks / valuation fields
+6. Export local outputs including report markdown, summaries, indexes, and trading dashboards
 
 This project is a **page-scraping workflow**, not an official stable content API.
 
@@ -82,6 +101,7 @@ This project is a **page-scraping workflow**, not an official stable content API
 - Resume from existing markdown outputs
 - Optional force re-fetch
 - PDF fallback for weak HTML extraction
+- Controlled concurrent detail fetch with `--concurrency`
 
 ### Research Outputs
 
@@ -94,9 +114,24 @@ This project is a **page-scraping workflow**, not an official stable content API
 - `TOP_SIGNALS.md`
 - `SECTOR_BRIEF.md`
 - `THEME_BRIEF.md`
+- `TRADING_DASHBOARD.md`
 - `report_list.json`
 - `report_index.csv`
 - `report_index.xlsx` (optional)
+
+### Structured Analysis Fields
+
+Current structured output includes:
+
+- headline
+- core drivers
+- positive signals
+- negative signals
+- valuation / rating fields
+- risk items
+- theme tags
+- signal score
+- priority bucket
 
 ## Requirements
 
@@ -145,6 +180,12 @@ pip install .
 python3 scripts/fetch_reports.py --date 2026-05-12
 ```
 
+### Fetch with controlled concurrency
+
+```bash
+python3 scripts/fetch_reports.py --date 2026-05-12 --concurrency 2
+```
+
 ### Fetch reports for a date range
 
 ```bash
@@ -183,6 +224,7 @@ python3 scripts/fetch_reports.py --date 2026-05-12 --qtype 1 --industry 化学�
 | `--timeout` | HTTP timeout in seconds |
 | `--retries` | Retry count for list/detail fetches |
 | `--retry-delay` | Delay between retries |
+| `--concurrency` | Concurrent detail fetch workers |
 | `--output-dir` | Output root directory |
 | `--stock` | Filter by stock code or name, repeatable |
 | `--org` | Filter by broker / organization, repeatable |
@@ -208,6 +250,7 @@ eastmoney_reports/
     ├── TOP_SIGNALS.md
     ├── SECTOR_BRIEF.md
     ├── THEME_BRIEF.md
+    ├── TRADING_DASHBOARD.md
     ├── report_list.json
     ├── report_index.csv
     ├── report_index.xlsx
@@ -230,8 +273,9 @@ eastmoney_reports/
 
 1. Run the scraper for a target day or date range
 2. Review `SUMMARY.md` for a quick scan
-3. Read `ANALYSIS_INPUT.md` or `ANALYSIS_INPUT.json` for downstream AI / programmatic analysis
-4. Use `DAILY_BRIEF.md`, `TOP_SIGNALS.md`, `SECTOR_BRIEF.md`, and `THEME_BRIEF.md` for cross-report synthesis
+3. Review `TRADING_DASHBOARD.md` for trading-style prioritization
+4. Read `ANALYSIS_INPUT.md` or `ANALYSIS_INPUT.json` for downstream AI / programmatic analysis
+5. Use `DAILY_BRIEF.md`, `TOP_SIGNALS.md`, `SECTOR_BRIEF.md`, and `THEME_BRIEF.md` for cross-report synthesis
 
 ## Limitations
 
@@ -240,7 +284,8 @@ eastmoney_reports/
 - PDF fallback depends on local `pdftotext`
 - XLSX export depends on `openpyxl`
 - Current filtering is mostly local post-fetch filtering
-- Current implementation prioritizes robustness over maximum speed
+- Current concurrency is detail-fetch oriented and progress logs may appear out of order
+- Current implementation is still script-first and not yet fully modularized
 
 ## Disclaimer
 

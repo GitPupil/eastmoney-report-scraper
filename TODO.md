@@ -1,47 +1,48 @@
 # TODO
 
-## v1.5 Task Breakdown
+## v1.5 Current Status
 
-### Models
-- [ ] add internal report models for meta / content / structured analysis / scoring
+### Landed
+- [x] financial signal extraction
+- [x] refined risk extraction
+- [x] valuation field extraction (`ratingChange`, `targetPrice`, `epsForecast`, `peForecast`)
+- [x] signal score
+- [x] priority bucket classification
+- [x] `TRADING_DASHBOARD.md`
+- [x] sector / theme heat in dashboard
+- [x] `--concurrency`
+- [x] richer CSV export schema
+
+## Remaining Work
 
 ### Parsing
-- [ ] refactor HTML extraction
-- [ ] add PDF text cleaning
-- [ ] add HTML vs PDF quality selection
-- [ ] rebuild summary extraction by section
-- [ ] add dedicated risk-section extraction
+- [ ] improve HTML section detection stability
+- [ ] add PDF text cleaning improvements
+- [ ] add HTML vs PDF quality selection / merge strategy
+- [ ] further reduce noisy summary bullets
 
 ### Analysis
-- [ ] split `build_structured_analysis` into smaller functions
-- [ ] add revenue / profit / margin signal extraction
-- [ ] add rating change detection
-- [ ] add target price / EPS / PE extraction
-- [ ] add theme tag inference
+- [ ] keep refining headline quality
+- [ ] compress core drivers into cleaner research-style expressions
+- [ ] improve theme tag precision
+- [ ] improve consistency between signals, risks, and score
+- [ ] add same-stock multi-broker aggregation
 
 ### Scoring
-- [ ] add signal score
-- [ ] add score breakdown
-- [ ] add priority bucket classification
-
-### Export
-- [ ] upgrade single-report markdown layout
-- [ ] add `TRADING_DASHBOARD.md`
-- [ ] enrich `TOP_SIGNALS.md`
-- [ ] enrich `SECTOR_BRIEF.md`
-- [ ] enrich `THEME_BRIEF.md`
-- [ ] extend CSV / JSON export schema
+- [ ] continue calibrating score thresholds
+- [ ] add more explicit score breakdown export
+- [ ] distinguish recovery-driven vs quality-growth-driven ideas better
 
 ### Resume / Batch
 - [ ] add `--refresh-weak`
 - [ ] add `--resume-errors-only`
 - [ ] add `--min-text-length`
-- [ ] add `--concurrency`
-- [ ] add optional request jitter
+- [ ] add optional request jitter / throttling
 
-### Validation
-- [ ] prepare regression sample set
+### Engineering
+- [ ] split monolithic script into internal modules
 - [ ] add parser tests
 - [ ] add analysis tests
 - [ ] add scoring tests
-- [ ] create manual QA checklist
+- [ ] prepare regression sample set
+- [ ] add CI / smoke checks

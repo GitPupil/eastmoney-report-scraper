@@ -5,12 +5,35 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- Formalized project documentation in `README.md`
-- Added standalone Chinese documentation in `README.zh-CN.md`
-- Added `ROADMAP.md` for v1.5 planning
-- Added `TODO.md` for task breakdown
-- Added `CONTRIBUTING.md`
-- Added `LICENSE` (MIT)
+- formalized project documentation in `README.md`
+- standalone Chinese documentation in `README.zh-CN.md`
+- `ROADMAP.md` for v1.5 planning
+- `TODO.md` for task breakdown
+- `CONTRIBUTING.md`
+- `LICENSE` (MIT)
+- `pyproject.toml`
+- `requirements.txt`
+- `requirements-dev.txt`
+- `DEVELOPMENT.md`
+- `TRADING_DASHBOARD.md`
+- dashboard sector heat and theme heat sections
+- controlled concurrent detail fetch via `--concurrency`
+- richer CSV export fields:
+  - `signalScore`
+  - `priorityBucket`
+  - `themeTags`
+  - `ratingChange`
+  - `targetPrice`
+  - `epsForecast`
+  - `peForecast`
+
+### Changed
+- improved structured analysis quality
+- refined risk extraction logic
+- added signal score and priority bucket
+- improved core driver extraction
+- improved trade hint generation
+- improved valuation field extraction
 
 ## [v1.4]
 
