@@ -204,7 +204,7 @@ def extract_sections(text: str) -> Dict[str, List[str]]:
 def extract_risk_items(text: str, industry_name: str = "") -> List[str]:
     sections = extract_sections(text)
     risk_lines: List[str] = []
-    for key in ("风险提示", "投资建议", "核心观点"):
+    for key in ("风险提示", "投资建议", "核心观点", "盈利预测与投资建议"):
         if key in sections:
             for line in sections[key][:6]:
                 if "风险" in line or key == "风险提示":
@@ -222,7 +222,10 @@ def extract_risk_items(text: str, industry_name: str = "") -> List[str]:
         if not item:
             continue
         item = re.sub(r"^(风险提示|投资风险|特别风险提示)[：:]?", "", item).strip()
+        item = re.sub(r"^(包括|主要包括|需关注|关注)", "", item).strip(" ，,")
         if len(item) < 4:
+            continue
+        if item in {"[无]", "无", "暂无"}:
             continue
         if any(bad in item for bad in banned_by_industry):
             continue
@@ -264,6 +267,60 @@ def build_headline(item: Dict[str, Any], text: str, summary: List[str], financia
     return sentences[0][:90] if sentences else "[无有效结论]"
 
 
+def extract_numeric_series(text: str, label: str, unit: str) -> List[str]:
+    patterns = [
+        rf"{label}[为：:]?\s*([0-9\.]+(?:/[0-9\.]+){{0,4}}){unit}",
+        rf"{label}[^\n。；;]*?分别为\s*([0-9\.]+(?:/[0-9\.]+){{0,4}}){unit}",
+        rf"对应{label}[^\n。；;]*?([0-9\.]+(?:/[0-9\.]+){{0,4}}){unit}",
+    ]
+    values: List[str] = []
+    for pattern in patterns:
+        matches = re.findall(pattern, text)
+        for match in matches:
+            if match not in values:
+                values.append(match)
+    return values[:2]
+
+
+
+def extract_valuation_fields(text: str, rating: str) -> Dict[str, Any]:
+    pe_match = extract_numeric_series(text, "PE", "倍")
+    pb_match = extract_numeric_series(text, "PB", "倍")
+    eps_match = extract_numeric_series(text, "EPS", "元")
+    target_price_match = re.findall(r"目标价[为：:]?\s*([0-9\.]+)元", text)
+    rating_change = ""
+    if re.search(r"首次覆盖", text):
+        rating_change = "首次覆盖"
+    elif re.search(r"维持[“\"]?(买入|增持|中性|减持|卖出)[”\"]?评级", text):
+        rating_change = "维持评级"
+    elif re.search(r"上调|下调", text):
+        rating_change = "评级或预期存在调整"
+
+    valuation = []
+    if pe_match:
+        valuation.append(f"PE：{'；'.join(pe_match)}倍")
+    if pb_match:
+        valuation.append(f"PB：{'；'.join(pb_match)}倍")
+    if eps_match:
+        valuation.append(f"EPS：{'；'.join(eps_match)}元")
+    if target_price_match:
+        valuation.append(f"目标价：{'；'.join(target_price_match[:2])}元")
+    if rating:
+        valuation.append(f"评级：{rating}")
+    if rating_change:
+        valuation.append(rating_change)
+
+    return {
+        "valuation": valuation,
+        "pe": pe_match,
+        "pb": pb_match,
+        "eps": eps_match,
+        "target_price": target_price_match[:2],
+        "rating_change": rating_change,
+    }
+
+
+
 def infer_theme_tags(title: str, text: str, summary: List[str]) -> List[str]:
     joined = f"{title} {' '.join(summary)} {text.replace(chr(10), ' ')}"
     theme_patterns = {
@@ -290,12 +347,19 @@ def score_report(analysis: Dict[str, Any]) -> Tuple[int, str, List[str]]:
         score -= min(negative_count * 6, 18)
         reasons.append("存在负向经营/景气信号")
     valuation_text = "；".join(analysis.get("valuation_and_rating") or [])
+    valuation_fields = analysis.get("valuation_fields") or {}
     if "评级：买入" in valuation_text:
         score += 8
         reasons.append("卖方评级积极")
     elif "评级：增持" in valuation_text:
         score += 4
         reasons.append("卖方评级偏积极")
+    if valuation_fields.get("target_price") or valuation_fields.get("eps"):
+        score += 4
+        reasons.append("存在明确估值/盈利预测锚")
+    if valuation_fields.get("rating_change") == "首次覆盖":
+        score += 3
+        reasons.append("存在首次覆盖催化")
     if any(tag in (analysis.get("theme_tags") or []) for tag in ("业绩增长", "利润修复", "景气改善")):
         score += 6
         reasons.append("具备可交易主题标签")
@@ -312,6 +376,25 @@ def score_report(analysis: Dict[str, Any]) -> Tuple[int, str, List[str]]:
     else:
         bucket = "D"
     return score, bucket, reasons[:4]
+
+
+def format_trade_hint_from_signals(financial_signals: Dict[str, str], valuation_fields: Dict[str, Any], risks: List[str]) -> List[str]:
+    hints: List[str] = []
+    if financial_signals.get("profit") == "利润改善":
+        hints.append("利润端改善较明确，若估值未充分反映，短线更容易形成正向反馈")
+    elif financial_signals.get("profit") == "利润承压":
+        hints.append("利润端仍承压，更适合等待后续盈利验证，而不是只看收入或题材")
+    if financial_signals.get("revenue") == "收入增长" and financial_signals.get("profit") == "利润改善":
+        hints.append("收入和利润方向一致，属于更标准的基本面改善型线索")
+    elif financial_signals.get("revenue") == "收入承压" and financial_signals.get("profit") == "利润改善":
+        hints.append("收入承压但利润改善，需重点判断改善是否来自结构优化或费用控制")
+    if valuation_fields.get("target_price") or valuation_fields.get("eps") or valuation_fields.get("pe"):
+        hints.append("卖方已给出明确估值/盈利预测，可直接对照市场预期判断赔率")
+    if len(risks) >= 3:
+        hints.append("风险项较多，交易上更适合轻仓跟踪而非激进追价")
+    if not hints:
+        hints.append("建议结合后续业绩兑现和同业比较再决定交易优先级")
+    return hints[:3]
 
 
 def extract_summary(text: str, max_bullets: int = 5) -> List[str]:
@@ -371,45 +454,17 @@ def build_structured_analysis(item: Dict[str, Any], text: str, summary: List[str
     if not negatives and re.search(r"承压|下滑|下降|回落|亏损|疲弱", joined_summary):
         negatives.append("短期经营或景气存在压力")
 
-    valuation = []
-    pe_match = re.findall(r"PE[为：:]?\s*([0-9\.]+(?:/[0-9\.]+){0,3})倍", joined_text)
-    pb_match = re.findall(r"PB[为：:]?\s*([0-9\.]+(?:/[0-9\.]+){0,3})倍", joined_text)
-    eps_match = re.findall(r"EPS[为：:]?\s*([0-9\.]+(?:/[0-9\.]+){0,3})元", joined_text)
-    aim_price_match = re.findall(r"目标价[为：:]?\s*([0-9\.]+)元", joined_text)
-    rating_change = ""
-    if re.search(r"首次覆盖", joined_text):
-        rating_change = "首次覆盖"
-    elif re.search(r"维持[“\"]?(买入|增持|中性|减持|卖出)[”\"]?评级", joined_text):
-        rating_change = "维持评级"
-    elif re.search(r"上调|下调", joined_text):
-        rating_change = "评级或预期存在调整"
-
-    if pe_match:
-        valuation.append(f"PE：{'；'.join(pe_match[:2])}倍")
-    if pb_match:
-        valuation.append(f"PB：{'；'.join(pb_match[:2])}倍")
-    if eps_match:
-        valuation.append(f"EPS：{'；'.join(eps_match[:2])}元")
-    if aim_price_match:
-        valuation.append(f"目标价：{'；'.join(aim_price_match[:2])}元")
-    if rating:
-        valuation.append(f"评级：{rating}")
-    if rating_change:
-        valuation.append(rating_change)
+    valuation_fields = extract_valuation_fields(joined_text, rating)
+    valuation = valuation_fields["valuation"]
 
     risks = extract_risk_items(text, item.get("industryName") or item.get("indvInduName") or "")
     if not risks and re.search(r"地缘政治|价格波动|不及预期|竞争加剧|政策变化", joined_text):
         risks = ["需关注外部与经营风险"]
 
-    trade_hint = []
-    if positives:
-        trade_hint.append("如果市场风格偏业绩/景气验证，这篇研报更容易提供正向交易线索")
-    if valuation:
-        trade_hint.append("建议结合估值与评级表述判断卖方是否已在交易中期改善预期")
-    if negatives:
+    trade_hint = format_trade_hint_from_signals(financial_signals, valuation_fields, risks)
+    if negatives and all("利润端仍承压" not in hint and "收入承压" not in hint for hint in trade_hint):
         trade_hint.append("需要区分是短期承压还是中期逻辑改善，避免只看标题追涨")
-    if not trade_hint:
-        trade_hint.append("建议结合后续业绩兑现和同业比较再决定交易优先级")
+    trade_hint = trade_hint[:3]
 
     theme_tags = infer_theme_tags(title, text, summary)
     score, priority_bucket, score_reasons = score_report(
@@ -417,6 +472,7 @@ def build_structured_analysis(item: Dict[str, Any], text: str, summary: List[str
             "positive_signals": positives,
             "negative_signals": negatives,
             "valuation_and_rating": valuation,
+            "valuation_fields": valuation_fields,
             "risks": risks,
             "theme_tags": theme_tags,
         }
@@ -428,6 +484,7 @@ def build_structured_analysis(item: Dict[str, Any], text: str, summary: List[str
         "positive_signals": positives,
         "negative_signals": negatives,
         "valuation_and_rating": valuation,
+        "valuation_fields": valuation_fields,
         "trade_hint": trade_hint,
         "risks": risks or ["需结合原文风险提示进一步确认"],
         "title_signal": title,
@@ -610,6 +667,10 @@ def write_csv_index(output_dir: Path, results: List[FetchResult]) -> Path:
                 "signalScore",
                 "priorityBucket",
                 "themeTags",
+                "ratingChange",
+                "targetPrice",
+                "epsForecast",
+                "peForecast",
                 "file",
             ],
         )
@@ -617,6 +678,7 @@ def write_csv_index(output_dir: Path, results: List[FetchResult]) -> Path:
         for result in results:
             item = result.item
             structured = build_structured_analysis(item, result.text, result.summary)
+            valuation_fields = structured.get("valuation_fields") or {}
             writer.writerow(
                 {
                     "stockName": item.get("stockName") or "",
@@ -634,6 +696,10 @@ def write_csv_index(output_dir: Path, results: List[FetchResult]) -> Path:
                     "signalScore": structured.get("signal_score", ""),
                     "priorityBucket": structured.get("priority_bucket", ""),
                     "themeTags": " | ".join(structured.get("theme_tags", [])),
+                    "ratingChange": valuation_fields.get("rating_change", ""),
+                    "targetPrice": " | ".join(valuation_fields.get("target_price", [])),
+                    "epsForecast": " | ".join(valuation_fields.get("eps", [])),
+                    "peForecast": " | ".join(valuation_fields.get("pe", [])),
                     "file": result.output_path.name if result.output_path else "",
                 }
             )
@@ -783,6 +849,8 @@ def write_day_summary(output_dir: Path, target_date: str, qtype: int, raw_list: 
     (output_dir / "SECTOR_BRIEF.md").write_text(sector_brief, encoding="utf-8")
     theme_brief = build_theme_brief(target_date, analysis_input)
     (output_dir / "THEME_BRIEF.md").write_text(theme_brief, encoding="utf-8")
+    trading_dashboard = build_trading_dashboard(target_date, analysis_input)
+    (output_dir / "TRADING_DASHBOARD.md").write_text(trading_dashboard, encoding="utf-8")
 
     csv_index_path = write_csv_index(output_dir, results)
     write_xlsx_index(output_dir, csv_index_path, log_path)
@@ -949,6 +1017,68 @@ def build_theme_brief(target_date: str, analysis_input: List[Dict[str, Any]]) ->
         else:
             lines.append("- [无明显样本]")
         lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def build_trading_dashboard(target_date: str, analysis_input: List[Dict[str, Any]]) -> str:
+    ranked = sorted(analysis_input, key=lambda entry: entry["structured_analysis"].get("signal_score", 0), reverse=True)
+    high_priority = [entry for entry in ranked if entry["structured_analysis"].get("priority_bucket") in {"A", "B"}]
+    risky = sorted(
+        analysis_input,
+        key=lambda entry: (len(entry["structured_analysis"].get("risks") or []), -entry["structured_analysis"].get("signal_score", 0)),
+        reverse=True,
+    )
+    broker_counter: Dict[str, int] = {}
+    for entry in analysis_input:
+        broker = entry.get("orgName") or "未知机构"
+        broker_counter[broker] = broker_counter.get(broker, 0) + 1
+    active_brokers = sorted(broker_counter.items(), key=lambda item: item[1], reverse=True)[:5]
+
+    lines = [
+        f"# TRADING_DASHBOARD（{target_date}）",
+        "",
+        f"- 样本数：`{len(analysis_input)}`",
+        f"- A/B 优先级样本：`{len(high_priority)}`",
+        "",
+        "## Headline",
+        "",
+    ]
+    if ranked:
+        lines.append(f"- 今日更值得先看的方向偏向：`{ranked[0]['structured_analysis'].get('headline', '无')}`")
+    else:
+        lines.append("- [无样本]")
+
+    lines.extend(["", "## Strongest Longs", ""])
+    lines.extend([
+        f"- `{entry.get('stockName') or entry.get('industryName')}`：score={entry['structured_analysis'].get('signal_score', 0)}，{'；'.join(entry['structured_analysis'].get('trade_hint') or [])}"
+        for entry in ranked[:5]
+    ] if ranked else ["- [无样本]"])
+
+    lines.extend(["", "## Biggest Risks", ""])
+    lines.extend([
+        f"- `{entry.get('stockName') or entry.get('industryName')}`：{'；'.join(entry['structured_analysis'].get('risks') or ['[无]'])}"
+        for entry in risky[:5]
+    ] if risky else ["- [无样本]"])
+
+    lines.extend(["", "## Rating / Forecast Changes", ""])
+    change_lines = []
+    for entry in ranked:
+        fields = entry["structured_analysis"].get("valuation_fields") or {}
+        parts = []
+        if fields.get("rating_change"):
+            parts.append(fields["rating_change"])
+        if fields.get("target_price"):
+            parts.append(f"目标价={'/'.join(fields['target_price'])}元")
+        if fields.get("eps"):
+            parts.append(f"EPS={'/'.join(fields['eps'])}元")
+        if fields.get("pe"):
+            parts.append(f"PE={'/'.join(fields['pe'])}倍")
+        if parts:
+            change_lines.append(f"- `{entry.get('stockName') or entry.get('industryName')}`：{'；'.join(parts)}")
+    lines.extend(change_lines[:8] if change_lines else ["- [无显式变化提取]"])
+
+    lines.extend(["", "## Active Brokers", ""])
+    lines.extend([f"- `{name}`：覆盖 `{count}` 篇" for name, count in active_brokers] if active_brokers else ["- [无样本]"])
     return "\n".join(lines) + "\n"
 
 
