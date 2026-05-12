@@ -1,271 +1,140 @@
 # eastmoney-report-scraper
 
-English | [简体中文](./README.zh-CN.md)
+[![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![Status](https://img.shields.io/badge/Status-v2.0-orange)](./CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/Tests-pytest-informational)](./tests)
 
-A research-oriented scraper for Eastmoney research reports.
+简体中文 | [English](./README.en.md)
 
-It collects stock and industry reports by date or date range, extracts report content from Eastmoney pages, falls back to PDF when needed, and exports structured local research artifacts including markdown reports, summaries, dashboards, and index files.
+面向研究场景的东方财富研报抓取与本地归档工具。它可以按日期或日期区间批量抓取东方财富研报中心的个股研报和行业研报，自动提取正文、生成摘要、打分、横向归纳，并输出适合阅读、AI 分析和程序化二次处理的本地研究文件。
 
-## Highlights
+> 这是页面抓取型 workflow，不是东方财富官方稳定内容 API。请自行确认使用方式符合目标网站条款、政策和适用法规。
 
-- Fetch **stock reports** and **industry reports** from Eastmoney
-- Support **single-date** and **date-range** batch jobs
-- Filter by **stock**, **broker**, **rating**, and **industry**
-- Retry list/detail requests automatically
-- Resume from existing markdown outputs
-- Use **PDF fallback** when HTML extraction is weak
-- Support **concurrent detail fetch** with `--concurrency`
-- Generate research artifacts for reading, AI analysis, and trading-style review
+## 目录
 
-## Project Status
+- [功能亮点](#功能亮点)
+- [快速开始](#快速开始)
+- [安装](#安装)
+- [常用命令](#常用命令)
+- [输出内容](#输出内容)
+- [CLI 参数](#cli-参数)
+- [项目结构](#项目结构)
+- [开发与测试](#开发与测试)
+- [限制与免责声明](#限制与免责声明)
 
-Current implemented line:
+## 功能亮点
 
-- **v2.0** modular package, tests, manifest, quality score, score breakdown, and consensus outputs
-- **v1.1** stability improvements
-- **v1.2** research workflow outputs
-- **v1.3** single-report structured analysis
-- **v1.4** multi-report daily aggregation
-- **v1.5 alpha** analysis/scoring/dashboard/concurrency foundation has landed
+- 支持东方财富个股研报与行业研报抓取。
+- 支持单日和日期区间批量任务。
+- 支持按股票/代码、机构、评级、行业筛选。
+- 自动重试列表页和详情页请求。
+- 支持基于已有 Markdown 与 `run_manifest.jsonl` 的断点续跑。
+- HTML 抽取偏弱时自动尝试 PDF fallback。
+- 使用文本质量分选择 HTML / PDF 结果。
+- 自动生成单篇 Markdown、摘要、日报、行业/主题归纳、交易看板和共识简报。
+- 输出 `scoreReasons` / `scoreBreakdown`，让信号评分更透明。
+- v2 已拆分为模块化包结构，并补充 pytest 回归测试。
 
-Current v1.5 alpha additions include:
-
-- refined risk extraction
-- financial-signal-based structured analysis
-- signal score and priority bucket
-- richer valuation exports (`ratingChange`, `targetPrice`, `epsForecast`, `peForecast`)
-- `TRADING_DASHBOARD.md`
-- sector/theme heat sections
-- controlled concurrent detail fetch via `--concurrency`
-
-Current v2.0 additions include:
-
-- modular package layout: `client / parser / analysis / scoring / exporters / cli`
-- `run_manifest.jsonl` run state tracking
-- structured HTML parsing and text quality scoring
-- `scoreReasons` / `scoreBreakdown` exports
-- `CONSENSUS_BRIEF.md`
-- date-range `RANGE_DASHBOARD.md`
-- `--refresh-weak`, `--resume-errors-only`, `--min-text-length`, `--jitter`, and `--manifest-name`
-- pytest regression tests and ruff dev dependency
-
-See also:
-
-- [ROADMAP.md](./ROADMAP.md)
-- [TODO.md](./TODO.md)
-- [CHANGELOG.md](./CHANGELOG.md)
-- [DEVELOPMENT.md](./DEVELOPMENT.md)
-
-## Repository Structure
-
-```text
-.
-├── SKILL.md
-├── README.md
-├── README.zh-CN.md
-├── CHANGELOG.md
-├── ROADMAP.md
-├── TODO.md
-├── DEVELOPMENT.md
-├── pyproject.toml
-├── requirements.txt
-├── requirements-dev.txt
-├── eastmoney_report_scraper/
-│   ├── client.py
-│   ├── parser.py
-│   ├── analysis.py
-│   ├── scoring.py
-│   ├── exporters.py
-│   └── cli.py
-├── scripts/
-│   ├── __init__.py
-│   └── fetch_reports.py
-└── tests/
-```
-
-## How It Works
-
-The scraper follows this workflow:
-
-1. Query Eastmoney report list pages and collect `infoCode`
-2. Fetch the HTML detail page for each report
-3. Extract main text content from the HTML page
-4. If HTML extraction is too weak, try **PDF fallback**
-5. Build structured summary / signals / risks / valuation fields
-6. Export local outputs including report markdown, summaries, indexes, and trading dashboards
-
-This project is a **page-scraping workflow**, not an official stable content API.
-
-## Features
-
-### Data Collection
-
-- Single-date fetch
-- Date-range batch fetch
-- Stock reports (`--qtype 0`)
-- Industry reports (`--qtype 1`)
-
-### Filtering
-
-- Filter by stock name or code
-- Filter by broker / organization
-- Filter by rating keyword
-- Filter by industry keyword
-- Limit fetched reports per date
-
-### Reliability
-
-- Retry for list-page failures
-- Retry for detail-page failures
-- Structured run log in `run.log.jsonl`
-- Resume from existing markdown outputs and `run_manifest.jsonl`
-- Optional force re-fetch
-- PDF fallback for weak HTML extraction
-- Controlled concurrent detail fetch with `--concurrency`
-
-### Research Outputs
-
-- One markdown file per report
-- `README.md` run summary
-- `SUMMARY.md`
-- `ANALYSIS_INPUT.md`
-- `ANALYSIS_INPUT.json`
-- `DAILY_BRIEF.md`
-- `TOP_SIGNALS.md`
-- `SECTOR_BRIEF.md`
-- `THEME_BRIEF.md`
-- `TRADING_DASHBOARD.md`
-- `CONSENSUS_BRIEF.md`
-- `report_list.json`
-- `run_manifest.jsonl`
-- `report_index.csv`
-- `report_index.xlsx` (optional)
-
-### Structured Analysis Fields
-
-Current structured output includes:
-
-- headline
-- core drivers
-- positive signals
-- negative signals
-- valuation / rating fields
-- risk items
-- theme tags
-- signal score
-- priority bucket
-- score reasons and score breakdown
-- text quality score
-
-## Requirements
-
-### Runtime
-
-- Python 3.9+
-
-### Optional Dependencies
-
-- `pdftotext` for PDF fallback
-- `openpyxl` for XLSX export
-
-Install runtime dependency:
-
-```bash
-pip install -r requirements.txt
-```
-
-Or install the optional XLSX dependency directly:
-
-```bash
-pip install openpyxl
-```
-
-## Installation
-
-### Option 1: Run directly from the repository
+## 快速开始
 
 ```bash
 git clone https://github.com/GitPupil/eastmoney-report-scraper.git
 cd eastmoney-report-scraper
 pip install -r requirements.txt
+python scripts/fetch_reports.py --date 2026-05-12 --limit 5
 ```
 
-### Option 2: Use standard Python project metadata
+运行后默认输出到：
+
+```text
+eastmoney_reports/研报_2026-05-12/
+```
+
+安装为 Python 包后，也可以使用命令行入口：
 
 ```bash
 pip install .
+eastmoney-report-scraper --date 2026-05-12 --limit 5
 ```
 
-## Quick Start
+## 安装
 
-### Fetch all reports for one day
+### 运行环境
+
+- Python 3.9+
+- `beautifulsoup4`：HTML 结构化解析
+- `openpyxl`：导出 XLSX
+
+### 可选工具
+
+- `pdftotext`：HTML 正文过弱时用于 PDF fallback
+
+### 安装依赖
 
 ```bash
-python3 scripts/fetch_reports.py --date 2026-05-12
+pip install -r requirements.txt
 ```
 
-### Fetch with controlled concurrency
+开发环境：
 
 ```bash
-python3 scripts/fetch_reports.py --date 2026-05-12 --concurrency 2
+pip install -r requirements-dev.txt
 ```
 
-### Fetch reports for a date range
+## 常用命令
+
+抓取某一天的个股研报：
 
 ```bash
-python3 scripts/fetch_reports.py --start-date 2026-05-09 --end-date 2026-05-12
+python scripts/fetch_reports.py --date 2026-05-12
 ```
 
-### Filter by stock
+抓取日期区间：
 
 ```bash
-python3 scripts/fetch_reports.py --date 2026-05-12 --stock 润本股份
+python scripts/fetch_reports.py --start-date 2026-05-09 --end-date 2026-05-12
 ```
 
-### Filter by broker
+按股票名或代码筛选：
 
 ```bash
-python3 scripts/fetch_reports.py --date 2026-05-12 --org 中邮证券 --org 国泰海通
+python scripts/fetch_reports.py --date 2026-05-12 --stock 润本股份
 ```
 
-### Filter industry reports
+按机构筛选：
 
 ```bash
-python3 scripts/fetch_reports.py --date 2026-05-12 --qtype 1 --industry 化学制药
+python scripts/fetch_reports.py --date 2026-05-12 --org 中邮证券 --org 国泰海通
 ```
 
-## CLI Arguments
+抓行业研报并按行业筛选：
 
-| Argument | Description |
-|---|---|
-| `--date` | Single date in `YYYY-MM-DD` |
-| `--start-date` | Start date for a range job |
-| `--end-date` | End date for a range job |
-| `--limit` | Only fetch the first N reports for each date |
-| `--qtype` | `0=stock reports`, `1=industry reports` |
-| `--page-size` | List API page size |
-| `--delay` | Delay in seconds between detail requests |
-| `--timeout` | HTTP timeout in seconds |
-| `--retries` | Retry count for list/detail fetches |
-| `--retry-delay` | Delay between retries |
-| `--concurrency` | Concurrent detail fetch workers |
-| `--output-dir` | Output root directory |
-| `--stock` | Filter by stock code or name, repeatable |
-| `--org` | Filter by broker / organization, repeatable |
-| `--rating` | Filter by rating keyword, repeatable |
-| `--industry` | Filter by industry keyword, repeatable |
-| `--force` | Force re-fetch even if markdown already exists |
-| `--no-pdf-fallback` | Disable PDF fallback |
-| `--no-xlsx` | Skip XLSX export |
-| `--refresh-weak` | Re-fetch previously weak outputs |
-| `--resume-errors-only` | Retry only previous errors |
-| `--min-text-length` | Mark extracted text below this length as weak |
-| `--jitter` | Add random extra delay to detail requests |
-| `--manifest-name` | Customize run manifest file name |
+```bash
+python scripts/fetch_reports.py --date 2026-05-12 --qtype 1 --industry 化学制药
+```
 
-## Output Layout
+并发抓取详情页：
 
-### Single-day run
+```bash
+python scripts/fetch_reports.py --date 2026-05-12 --concurrency 2 --jitter 0.5
+```
+
+只重抓历史弱提取结果：
+
+```bash
+python scripts/fetch_reports.py --date 2026-05-12 --refresh-weak
+```
+
+只重试历史失败结果：
+
+```bash
+python scripts/fetch_reports.py --date 2026-05-12 --resume-errors-only
+```
+
+## 输出内容
+
+### 单日任务
 
 ```text
 eastmoney_reports/
@@ -288,7 +157,7 @@ eastmoney_reports/
     └── run.log.jsonl
 ```
 
-### Date-range run
+### 区间任务
 
 ```text
 eastmoney_reports/
@@ -301,24 +170,98 @@ eastmoney_reports/
     └── 研报_2026-05-12/
 ```
 
-## Suggested Workflow
+### 推荐阅读顺序
 
-1. Run the scraper for a target day or date range
-2. Review `SUMMARY.md` for a quick scan
-3. Review `TRADING_DASHBOARD.md` for trading-style prioritization
-4. Read `ANALYSIS_INPUT.md` or `ANALYSIS_INPUT.json` for downstream AI / programmatic analysis
-5. Use `DAILY_BRIEF.md`, `TOP_SIGNALS.md`, `SECTOR_BRIEF.md`, and `THEME_BRIEF.md` for cross-report synthesis
+1. `TRADING_DASHBOARD.md`：先看交易优先级、风险和热度。
+2. `SUMMARY.md`：快速扫当天所有样本。
+3. `TOP_SIGNALS.md`：看正向/风险/估值评级信号。
+4. `CONSENSUS_BRIEF.md`：看同一标的的多机构覆盖和分歧。
+5. `ANALYSIS_INPUT.md` / `ANALYSIS_INPUT.json`：交给 AI 或程序继续分析。
 
-## Limitations
+## CLI 参数
 
-- This is not an official content API
-- Eastmoney page structure may change
-- PDF fallback depends on local `pdftotext`
-- XLSX export depends on `openpyxl`
-- Current filtering is mostly local post-fetch filtering
-- Current concurrency is detail-fetch oriented and progress logs may appear out of order
-- Current structured analysis is rule-based and intended for screening / organization, not investment advice
+| 参数 | 说明 |
+|---|---|
+| `--date` | 单日抓取，格式 `YYYY-MM-DD` |
+| `--start-date` | 区间开始日期 |
+| `--end-date` | 区间结束日期 |
+| `--limit` | 每个日期仅抓前 N 篇 |
+| `--qtype` | `0=个股研报`，`1=行业研报` |
+| `--page-size` | 列表接口页大小 |
+| `--delay` | 串行抓取时每篇详情页之间的等待秒数 |
+| `--timeout` | HTTP 超时秒数 |
+| `--retries` | 列表/详情抓取重试次数 |
+| `--retry-delay` | 重试间隔秒数 |
+| `--concurrency` | 详情页并发抓取 worker 数 |
+| `--jitter` | 为详情页请求增加随机等待秒数 |
+| `--output-dir` | 输出根目录 |
+| `--stock` | 按股票名/代码筛选，可重复传 |
+| `--org` | 按机构筛选，可重复传 |
+| `--rating` | 按评级筛选，可重复传 |
+| `--industry` | 按行业筛选，可重复传 |
+| `--force` | 即使已存在 Markdown 也强制重抓 |
+| `--refresh-weak` | 仅重抓历史弱提取结果 |
+| `--resume-errors-only` | 仅重试历史失败结果 |
+| `--min-text-length` | 低于该正文长度时标记为 `weak` |
+| `--manifest-name` | 自定义运行状态文件名 |
+| `--no-pdf-fallback` | 禁用 PDF fallback |
+| `--no-xlsx` | 跳过 XLSX 导出 |
 
-## Disclaimer
+## 项目结构
 
-This project is intended for research, workflow automation, and local knowledge organization. Please use it responsibly and ensure your usage complies with the target website's terms, policies, and applicable regulations.
+```text
+.
+├── eastmoney_report_scraper/
+│   ├── client.py       # 列表/详情请求与重试
+│   ├── parser.py       # HTML/PDF 抽取与文本质量评分
+│   ├── analysis.py     # 摘要、风险、财务信号、估值字段
+│   ├── scoring.py      # signal score 与 priority bucket
+│   ├── exporters.py    # Markdown、CSV、XLSX、日报和看板
+│   └── cli.py          # CLI 参数与主流程编排
+├── scripts/
+│   └── fetch_reports.py # 兼容入口
+├── tests/
+│   └── test_core.py
+├── README.md
+├── README.en.md
+├── CHANGELOG.md
+├── ROADMAP.md
+├── TODO.md
+└── DEVELOPMENT.md
+```
+
+## 开发与测试
+
+```bash
+python scripts/fetch_reports.py --help
+python -B -m pytest -q -p no:cacheprovider
+python -m ruff check . --no-cache
+```
+
+最小 smoke test：
+
+```bash
+python scripts/fetch_reports.py --date 2026-05-12 --limit 2 --output-dir ./eastmoney_reports_check
+```
+
+## 版本状态
+
+当前主线：v2.0
+
+- 已完成模块化重构。
+- 已增加 manifest、文本质量评分和弱/错误结果续跑。
+- 已增加评分原因、评分拆解、共识简报和区间看板。
+- 后续重点见 [ROADMAP.md](./ROADMAP.md) 与 [TODO.md](./TODO.md)。
+
+## 限制与免责声明
+
+- 本项目不是官方稳定内容 API。
+- 东方财富页面结构变化可能导致抽取逻辑需要调整。
+- PDF fallback 依赖本地 `pdftotext`。
+- 当前结构化分析是规则驱动，适合研究初筛和归档，不构成投资建议。
+- 请在使用时自行确认符合目标网站条款、使用政策与适用法规。
+
+## License
+
+[MIT](./LICENSE)
+

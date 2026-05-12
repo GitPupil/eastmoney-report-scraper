@@ -20,8 +20,10 @@ All notable changes to this project will be documented in this file.
   - `--manifest-name`
 - pytest regression tests
 - `beautifulsoup4`, `pytest`, and `ruff` dependencies
+- GitHub default Chinese `README.md`
+- English documentation in `README.en.md`
 - formalized project documentation in `README.md`
-- standalone Chinese documentation in `README.zh-CN.md`
+- compatibility redirect in `README.zh-CN.md`
 - `ROADMAP.md` for v1.5 planning
 - `TODO.md` for task breakdown
 - `CONTRIBUTING.md`

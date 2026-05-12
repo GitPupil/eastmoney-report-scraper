@@ -16,7 +16,7 @@ This project focuses on:
 Please read:
 
 - [README.md](./README.md)
-- [README.zh-CN.md](./README.zh-CN.md)
+- [README.en.md](./README.en.md)
 - [ROADMAP.md](./ROADMAP.md)
 - [TODO.md](./TODO.md)
 
