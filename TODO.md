@@ -1,55 +1,38 @@
 # TODO
 
-## v1.5 Current Status
+## 0.2.0 Current Status
 
 ### Landed
-- [x] financial signal extraction
-- [x] refined risk extraction
-- [x] valuation field extraction (`ratingChange`, `targetPrice`, `epsForecast`, `peForecast`)
-- [x] signal score
-- [x] priority bucket classification
-- [x] `TRADING_DASHBOARD.md`
-- [x] sector / theme heat in dashboard
-- [x] `--concurrency`
-- [x] richer CSV export schema
-- [x] v2 package layout
-- [x] `run_manifest.jsonl`
-- [x] text quality score
-- [x] score breakdown export
-- [x] `CONSENSUS_BRIEF.md`
-- [x] `RANGE_DASHBOARD.md`
-- [x] pytest regression tests
+- [x] Modular package layout
+- [x] Compatibility script entrypoint
+- [x] Structured HTML extraction with PDF fallback
+- [x] Text quality scoring
+- [x] Run manifest for weak/error resume workflows
+- [x] Transparent signal score reasons and breakdown
+- [x] Daily briefs, trading dashboard, consensus brief, and range dashboard
+- [x] Historical company and industry coverage summaries
+- [x] Hotspot dashboard and hotspot signal CSV
+- [x] Pytest regression tests and ruff checks
 
 ## Remaining Work
 
-### Parsing
-- [x] improve HTML section detection stability
-- [ ] add PDF text cleaning improvements
-- [x] add HTML vs PDF quality selection / merge strategy
-- [ ] further reduce noisy summary bullets
+### Extraction
+- [ ] Improve PDF text cleanup
+- [ ] Add a small checked-in regression fixture set
+- [ ] Further reduce noisy summary bullets
 
 ### Analysis
-- [ ] keep refining headline quality
-- [ ] compress core drivers into cleaner research-style expressions
-- [ ] improve theme tag precision
-- [ ] improve consistency between signals, risks, and score
-- [x] add same-stock multi-broker aggregation
+- [ ] Improve headline quality
+- [ ] Compress core drivers into cleaner research-style bullets
+- [ ] Improve theme tag precision
+- [ ] Continue calibrating score thresholds
 
-### Scoring
-- [ ] continue calibrating score thresholds
-- [x] add more explicit score breakdown export
-- [ ] distinguish recovery-driven vs quality-growth-driven ideas better
-
-### Resume / Batch
-- [x] add `--refresh-weak`
-- [x] add `--resume-errors-only`
-- [x] add `--min-text-length`
-- [x] add optional request jitter / throttling
+### Research Outputs
+- [ ] Deepen consensus and divergence summaries
+- [ ] Add richer range-level synthesis for repeated multi-day runs
+- [ ] Add more explicit hotspot reason categories for downstream agents
 
 ### Engineering
-- [x] split monolithic script into internal modules
-- [x] add parser tests
-- [x] add analysis tests
-- [x] add scoring tests
-- [ ] prepare regression sample set
-- [ ] add CI / smoke checks
+- [ ] Add GitHub Actions for pytest and ruff
+- [ ] Add smoke-test fixtures that do not require network access
+- [ ] Document release tagging workflow

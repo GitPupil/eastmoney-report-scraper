@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
-[![Status](https://img.shields.io/badge/Status-v2.0-orange)](./CHANGELOG.md)
+[![Status](https://img.shields.io/badge/Status-v0.2.0-orange)](./CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/Tests-pytest-informational)](./tests)
 
 简体中文 | [English](./README.en.md)
@@ -279,7 +279,7 @@ python scripts/fetch_reports.py --date 2026-05-12 --limit 2 --output-dir ./eastm
 
 ## 版本状态
 
-当前主线：v2.0
+当前主线：0.2.0
 
 - 已完成模块化重构。
 - 已增加 manifest、文本质量评分和弱/错误结果续跑。

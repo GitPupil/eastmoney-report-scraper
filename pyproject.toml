@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eastmoney-report-scraper"
-version = "0.1.0"
+version = "0.2.0"
 description = "Research-oriented scraper for Eastmoney research reports"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["eastmoney", "research-report", "scraper", "finance"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Financial and Insurance Industry",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",

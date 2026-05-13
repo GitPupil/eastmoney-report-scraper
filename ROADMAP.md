@@ -1,83 +1,41 @@
-# eastmoney-report-scraper Roadmap
+# Roadmap
 
-## v2.0 Landed
+## 0.2.0 Landed
 
-- modular package layout
-- compatibility script entrypoint
-- parser / analysis / scoring / exporter separation
-- run manifest for weak/error resume workflows
-- text quality scoring for extraction selection
-- score reasons and score breakdown exports
-- consensus and range dashboards
-- pytest regression tests and ruff dev dependency
-
----
-
-## v1.5 Goal
-
-Upgrade the scraper from a basic collection tool into a more reliable research workflow tool:
-
-- more accurate structured analysis
-- better risk extraction
-- transaction-oriented ranking and summaries
-- stronger resume / batch handling
-- more practical engineering ergonomics
+- Modular package layout under `eastmoney_report_scraper/`
+- Compatibility script entrypoint in `scripts/fetch_reports.py`
+- Parser, analysis, scoring, exporter, CLI, and hotspot modules
+- Run manifest for weak/error resume workflows
+- Text quality scoring for HTML/PDF selection
+- Score reasons and score breakdown exports
+- Daily briefs, trading dashboard, consensus brief, and range dashboard
+- Historical coverage files:
+  - `COVERAGE_HISTORY.jsonl`
+  - `COMPANY_COVERAGE_SUMMARY.csv`
+  - `INDUSTRY_COVERAGE_SUMMARY.csv`
+- Hotspot files:
+  - `HOTSPOT_DASHBOARD.md`
+  - `HOTSPOT_SIGNALS.csv`
+- Pytest regression tests and ruff development checks
 
 ---
 
-## Already Landed in v1.5 Alpha
+## Next Milestones
 
-- refined risk extraction
-- financial-signal-based structured analysis
-- signal score and priority bucket
-- richer valuation exports
-- `TRADING_DASHBOARD.md`
-- dashboard sector/theme heat
-- controlled concurrent detail fetch via `--concurrency`
+### 0.3.0: Extraction Reliability
+- Add small HTML/PDF regression fixtures
+- Improve PDF text cleanup
+- Reduce noisy summary bullets
+- Add stronger handling for malformed pages
 
----
+### 0.4.0: Research Depth
+- Improve headline and core-driver quality
+- Deepen consensus and divergence summaries
+- Add richer range-level synthesis
+- Refine hotspot reason categories for downstream agents
 
-## Remaining P0 / P1 Work
-
-### 1. Analysis quality refinement
-- continue improving headline quality
-- compress core drivers into cleaner research-style bullets
-- reduce false-positive theme tags
-- improve consistency between risks, score, and trade hints
-
-### 2. Resume / batch improvements
-- continue calibrating weak/error resume behavior on real runs
-- add richer throttling presets for concurrency
-
-### 3. Extraction robustness
-- continue improving section detection quality
-- calibrate HTML vs PDF quality selection logic
-- reduce noisy summary bullets
-- add stronger handling for malformed pages
-
-### 4. Research usability
-- deepen same-stock multi-broker coverage summary
-- deepen consensus / divergence summary for repeated coverage
-- improve cross-day synthesis for date-range runs
-
-### 5. Engineering
-- expand tests and regression fixtures
-- add CI for syntax / smoke validation
-
----
-
-## Suggested Next Milestones
-
-### Milestone A: Stabilize v1.5 alpha
-- improve score calibration
-- tighten summary / driver extraction
-- add jitter / better concurrency controls
-
-### Milestone B: Research depth
-- multi-broker consensus view
-- repeated coverage statistics
-- stronger range-level synthesis
-
-### Milestone C: Codebase structure
-- expand parser / analysis / exporter fixtures
-- add CI
+### 0.5.0: Developer Experience
+- Add GitHub Actions for pytest and ruff
+- Add network-free smoke fixtures
+- Document release tagging and publishing workflow
+- Expand public examples and sample output screenshots

@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.2.0] - 2026-05-13
 
 ### Added
 - v2 package layout under `eastmoney_report_scraper/`
@@ -37,7 +37,7 @@ All notable changes to this project will be documented in this file.
   - `--hotspot-broker-threshold`
   - `--hotspot-coverage-threshold`
   - `--no-hotspot`
-- `ROADMAP.md` for v1.5 planning
+- `ROADMAP.md` for public milestone planning
 - `TODO.md` for task breakdown
 - `CONTRIBUTING.md`
 - `LICENSE` (MIT)
