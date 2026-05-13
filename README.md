@@ -34,6 +34,8 @@
 - 使用文本质量分选择 HTML / PDF 结果。
 - 自动生成单篇 Markdown、摘要、日报、行业/主题归纳、交易看板和共识简报。
 - 输出 `scoreReasons` / `scoreBreakdown`，让信号评分更透明。
+- 累计 `COVERAGE_HISTORY.jsonl`，生成公司/行业覆盖汇总。
+- 自动生成 `HOTSPOT_DASHBOARD.md` 和 `HOTSPOT_SIGNALS.csv`，识别近期首次覆盖、沉寂后再覆盖、多券商集中覆盖和行业共振。
 - v2 已拆分为模块化包结构，并补充 pytest 回归测试。
 
 ## 快速开始
@@ -49,6 +51,17 @@ python scripts/fetch_reports.py --date 2026-05-12 --limit 5
 
 ```text
 eastmoney_reports/研报_2026-05-12/
+```
+
+同时会在输出根目录累计历史覆盖记录：
+
+```text
+eastmoney_reports/
+├── COVERAGE_HISTORY.jsonl
+├── COMPANY_COVERAGE_SUMMARY.csv
+├── INDUSTRY_COVERAGE_SUMMARY.csv
+├── HOTSPOT_DASHBOARD.md
+└── HOTSPOT_SIGNALS.csv
 ```
 
 安装为 Python 包后，也可以使用命令行入口：
@@ -132,12 +145,23 @@ python scripts/fetch_reports.py --date 2026-05-12 --refresh-weak
 python scripts/fetch_reports.py --date 2026-05-12 --resume-errors-only
 ```
 
+调整热点判断窗口：
+
+```bash
+python scripts/fetch_reports.py --date 2026-05-12 --hotspot-days 45 --hotspot-broker-threshold 4
+```
+
 ## 输出内容
 
 ### 单日任务
 
 ```text
 eastmoney_reports/
+├── COVERAGE_HISTORY.jsonl
+├── COMPANY_COVERAGE_SUMMARY.csv
+├── INDUSTRY_COVERAGE_SUMMARY.csv
+├── HOTSPOT_DASHBOARD.md
+├── HOTSPOT_SIGNALS.csv
 └── 研报_2026-05-12/
     ├── 001——某公司——某标题.md
     ├── README.md
@@ -172,11 +196,13 @@ eastmoney_reports/
 
 ### 推荐阅读顺序
 
-1. `TRADING_DASHBOARD.md`：先看交易优先级、风险和热度。
-2. `SUMMARY.md`：快速扫当天所有样本。
-3. `TOP_SIGNALS.md`：看正向/风险/估值评级信号。
-4. `CONSENSUS_BRIEF.md`：看同一标的的多机构覆盖和分歧。
-5. `ANALYSIS_INPUT.md` / `ANALYSIS_INPUT.json`：交给 AI 或程序继续分析。
+1. `HOTSPOT_DASHBOARD.md`：先看近期首次覆盖、沉寂后再覆盖、多券商集中覆盖和行业共振。
+2. `TRADING_DASHBOARD.md`：看交易优先级、风险和热度。
+3. `SUMMARY.md`：快速扫当天所有样本。
+4. `TOP_SIGNALS.md`：看正向/风险/估值评级信号。
+5. `CONSENSUS_BRIEF.md`：看同一标的的多机构覆盖和分歧。
+6. `COMPANY_COVERAGE_SUMMARY.csv` / `INDUSTRY_COVERAGE_SUMMARY.csv`：看历史覆盖次数。
+7. `ANALYSIS_INPUT.md` / `ANALYSIS_INPUT.json`：交给 AI 或程序继续分析。
 
 ## CLI 参数
 
@@ -204,6 +230,12 @@ eastmoney_reports/
 | `--resume-errors-only` | 仅重试历史失败结果 |
 | `--min-text-length` | 低于该正文长度时标记为 `weak` |
 | `--manifest-name` | 自定义运行状态文件名 |
+| `--hotspot-days` | 热点判断主窗口天数，默认 `30` |
+| `--hotspot-short-days` | 热点短窗口天数，默认 `7` |
+| `--hotspot-silent-days` | 沉寂后再覆盖判断窗口，默认 `90` |
+| `--hotspot-broker-threshold` | 多券商覆盖阈值，默认 `3` |
+| `--hotspot-coverage-threshold` | 覆盖篇数热度阈值，默认 `3` |
+| `--no-hotspot` | 跳过热点看板和热点信号表 |
 | `--no-pdf-fallback` | 禁用 PDF fallback |
 | `--no-xlsx` | 跳过 XLSX 导出 |
 
@@ -217,6 +249,7 @@ eastmoney_reports/
 │   ├── analysis.py     # 摘要、风险、财务信号、估值字段
 │   ├── scoring.py      # signal score 与 priority bucket
 │   ├── exporters.py    # Markdown、CSV、XLSX、日报和看板
+│   ├── hotspots.py     # 公司/行业近期热度和覆盖变化识别
 │   └── cli.py          # CLI 参数与主流程编排
 ├── scripts/
 │   └── fetch_reports.py # 兼容入口
@@ -251,6 +284,7 @@ python scripts/fetch_reports.py --date 2026-05-12 --limit 2 --output-dir ./eastm
 - 已完成模块化重构。
 - 已增加 manifest、文本质量评分和弱/错误结果续跑。
 - 已增加评分原因、评分拆解、共识简报和区间看板。
+- 已增加历史覆盖明细、公司/行业覆盖汇总和热点识别看板。
 - 后续重点见 [ROADMAP.md](./ROADMAP.md) 与 [TODO.md](./TODO.md)。
 
 ## 限制与免责声明
@@ -264,4 +298,3 @@ python scripts/fetch_reports.py --date 2026-05-12 --limit 2 --output-dir ./eastm
 ## License
 
 [MIT](./LICENSE)
-

@@ -20,8 +20,15 @@ from eastmoney_report_scraper.cli import (
     read_manifest,
     select_resume_error_items,
 )
-from eastmoney_report_scraper.exporters import build_markdown, write_csv_index, write_day_summary
-from eastmoney_report_scraper.models import FetchResult
+from eastmoney_report_scraper.exporters import (
+    build_markdown,
+    read_coverage_history,
+    update_coverage_history,
+    write_csv_index,
+    write_day_summary,
+)
+from eastmoney_report_scraper.hotspots import HotspotConfig, calculate_hotspot_signals, write_hotspot_outputs
+from eastmoney_report_scraper.models import DayRun, FetchResult
 from eastmoney_report_scraper.parser import extract_report_text, text_quality
 from eastmoney_report_scraper.scoring import score_report
 from eastmoney_report_scraper.utils import sanitize_filename
@@ -160,6 +167,149 @@ def test_csv_and_day_outputs(tmp_path: Path):
     assert (tmp_path / "CONSENSUS_BRIEF.md").exists()
     data = json.loads((tmp_path / "ANALYSIS_INPUT.json").read_text(encoding="utf-8"))
     assert data[0]["structured_analysis"]["score_breakdown"]["final"]
+
+
+def test_coverage_history_and_summary_are_deduped(tmp_path: Path):
+    summary = extract_summary(SAMPLE_TEXT)
+    first = FetchResult(SAMPLE_ITEM, "ok", SAMPLE_TEXT, summary, tmp_path / "001.md", "html")
+    duplicate = FetchResult({**SAMPLE_ITEM, "orgSName": "重复证券"}, "ok", SAMPLE_TEXT, summary, tmp_path / "001b.md", "html")
+    second = FetchResult(
+        {**SAMPLE_ITEM, "infoCode": "DEF456", "orgSName": "测试证券", "emRatingName": "增持"},
+        "ok",
+        SAMPLE_TEXT,
+        summary,
+        tmp_path / "002.md",
+        "html",
+    )
+    industry = FetchResult(
+        {"industryName": "计算机", "infoCode": "IND001", "orgSName": "行业证券", "title": "行业报告"},
+        "ok",
+        SAMPLE_TEXT,
+        summary,
+        tmp_path / "003.md",
+        "html",
+    )
+    day_run = DayRun("2026-05-12", tmp_path / "研报_2026-05-12", [], [first, duplicate, second, industry])
+
+    history_path, summary_path, industry_summary_path = update_coverage_history(tmp_path, [day_run])
+    entries = read_coverage_history(history_path)
+    assert sorted(entries) == ["ABC123", "DEF456", "IND001"]
+    assert entries["ABC123"]["reportType"] == "stock"
+    assert entries["IND001"]["reportType"] == "industry"
+    assert "signalScore" in entries["ABC123"]
+
+    with summary_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows == [
+        {
+            "stockCode": "000001",
+            "stockName": "样本股份",
+            "orgName": "测试证券",
+            "rating": "增持",
+            "coverageCount": "1",
+        },
+        {
+            "stockCode": "000001",
+            "stockName": "样本股份",
+            "orgName": "重复证券",
+            "rating": "买入",
+            "coverageCount": "1",
+        },
+    ]
+
+    with industry_summary_path.open("r", encoding="utf-8", newline="") as handle:
+        industry_rows = list(csv.DictReader(handle))
+    assert any(row["industryName"] == "计算机" and row["orgName"] == "行业证券" for row in industry_rows)
+
+
+def test_hotspot_detection_first_reactivated_multi_broker_and_industry(tmp_path: Path):
+    entries = [
+        {
+            "infoCode": "HOT001",
+            "reportType": "stock",
+            "stockCode": "300001",
+            "stockName": "新星股份",
+            "industryName": "人工智能",
+            "orgName": "华泰证券",
+            "rating": "买入",
+            "publishDate": "2026-05-10",
+        },
+        {
+            "infoCode": "HOT002",
+            "reportType": "stock",
+            "stockCode": "300001",
+            "stockName": "新星股份",
+            "industryName": "人工智能",
+            "orgName": "中信证券",
+            "rating": "买入",
+            "publishDate": "2026-05-11",
+        },
+        {
+            "infoCode": "HOT003",
+            "reportType": "stock",
+            "stockCode": "300001",
+            "stockName": "新星股份",
+            "industryName": "人工智能",
+            "orgName": "国君证券",
+            "rating": "增持",
+            "publishDate": "2026-05-12",
+        },
+        {
+            "infoCode": "OLD001",
+            "reportType": "stock",
+            "stockCode": "300002",
+            "stockName": "沉寂股份",
+            "industryName": "新能源",
+            "orgName": "旧券商",
+            "rating": "增持",
+            "publishDate": "2026-01-01",
+        },
+        {
+            "infoCode": "BACK001",
+            "reportType": "stock",
+            "stockCode": "300002",
+            "stockName": "沉寂股份",
+            "industryName": "新能源",
+            "orgName": "新券商",
+            "rating": "买入",
+            "publishDate": "2026-05-12",
+        },
+    ]
+    config = HotspotConfig(recent_days=30, short_days=7, silent_days=90, multi_broker_threshold=3, hot_coverage_threshold=3)
+    signals = calculate_hotspot_signals(entries, config=config, as_of=parse_date("2026-05-13"))
+    by_name = {signal["entityName"]: signal for signal in signals}
+
+    hot_company = by_name["新星股份"]
+    assert hot_company["isFirstCoverage"] is True
+    assert hot_company["coverage30d"] == 3
+    assert hot_company["coverageAcceleration"] == 3
+    assert hot_company["brokerCount30d"] == 3
+    assert hot_company["newBrokerCount30d"] == 3
+    assert hot_company["hotspotLevel"] == "STRONG"
+    assert hot_company["buyRatio"] == 0.6667
+    assert "个股与行业同时升温" in hot_company["reasons"]
+
+    reactivated = by_name["沉寂股份"]
+    assert reactivated["isReactivatedCoverage"] is True
+    assert reactivated["hotspotLevel"] == "WATCH"
+
+    industry = by_name["人工智能"]
+    assert industry["entityType"] == "industry"
+    assert industry["coverage30d"] == 3
+    assert industry["brokerCount30d"] == 3
+    assert industry["coveredCompanyCount30d"] == 1
+    assert industry["hotspotLevel"] == "HOT"
+
+    signals_path, dashboard_path = write_hotspot_outputs(tmp_path, entries, config=config, as_of=parse_date("2026-05-13"))
+    assert signals_path.exists()
+    assert dashboard_path.exists()
+    with signals_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows[0]["entityType"] in {"company", "industry"}
+    assert "reasons" in rows[0]
+    dashboard = dashboard_path.read_text(encoding="utf-8")
+    assert "多券商集中覆盖" in dashboard
+    assert "个股-行业共振" in dashboard
 
 
 def test_refresh_weak_refetches_existing(monkeypatch, tmp_path: Path):

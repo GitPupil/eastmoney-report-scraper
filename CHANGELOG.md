@@ -24,6 +24,19 @@ All notable changes to this project will be documented in this file.
 - English documentation in `README.en.md`
 - formalized project documentation in `README.md`
 - compatibility redirect in `README.zh-CN.md`
+- historical coverage detail in `COVERAGE_HISTORY.jsonl`
+- company coverage summary in `COMPANY_COVERAGE_SUMMARY.csv`
+- industry coverage summary in `INDUSTRY_COVERAGE_SUMMARY.csv`
+- hotspot detection module in `eastmoney_report_scraper/hotspots.py`
+- `HOTSPOT_DASHBOARD.md`
+- `HOTSPOT_SIGNALS.csv`
+- hotspot CLI args:
+  - `--hotspot-days`
+  - `--hotspot-short-days`
+  - `--hotspot-silent-days`
+  - `--hotspot-broker-threshold`
+  - `--hotspot-coverage-threshold`
+  - `--no-hotspot`
 - `ROADMAP.md` for v1.5 planning
 - `TODO.md` for task breakdown
 - `CONTRIBUTING.md`
@@ -54,6 +67,8 @@ All notable changes to this project will be documented in this file.
 - improved core driver extraction
 - improved trade hint generation
 - improved valuation field extraction
+- expanded `COVERAGE_HISTORY.jsonl` schema with report type, industry, title, theme tags, signal score, and priority bucket
+- updated the skill guide to read hotspot outputs when judging recent company or industry attention
 
 ## [v1.4]
 

@@ -15,7 +15,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from .analysis import build_structured_analysis, extract_summary
 from .client import fetch_report_list, http_get_with_retry
 from .constants import DEFAULT_MANIFEST_NAME, DEFAULT_OUTPUT_ROOT, DETAIL_URL_TEMPLATE
-from .exporters import build_markdown, write_day_summary, write_range_summary
+from .exporters import build_markdown, read_coverage_history, update_coverage_history, write_day_summary, write_range_summary
+from .hotspots import HotspotConfig, write_hotspot_outputs
 from .models import DayRun, FetchResult
 from .parser import extract_pdf_text, extract_pdf_url, extract_report_text, text_quality
 from .utils import log_event, sanitize_filename
@@ -364,6 +365,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-text-length", type=int, default=80, help="Minimum extracted text length before a report is marked weak")
     parser.add_argument("--jitter", type=float, default=0.0, help="Random extra delay seconds added to detail requests")
     parser.add_argument("--manifest-name", default=DEFAULT_MANIFEST_NAME, help="Run manifest jsonl file name")
+    parser.add_argument("--hotspot-days", type=int, default=30, help="Recent-day window for hotspot detection")
+    parser.add_argument("--hotspot-short-days", type=int, default=7, help="Short-day window for hotspot acceleration")
+    parser.add_argument("--hotspot-silent-days", type=int, default=90, help="Silent window before reactivated coverage")
+    parser.add_argument("--hotspot-broker-threshold", type=int, default=3, help="Distinct broker threshold for hotspot detection")
+    parser.add_argument("--hotspot-coverage-threshold", type=int, default=3, help="Coverage count threshold for hotspot detection")
+    parser.add_argument("--no-hotspot", action="store_true", help="Skip HOTSPOT_DASHBOARD.md and HOTSPOT_SIGNALS.csv outputs")
     return parser.parse_args()
 
 
@@ -420,6 +427,19 @@ def main() -> None:
         day_runs.append(run_for_date(target_date, root_dir, args))
 
     write_range_summary(root_dir, day_runs, args.qtype)
+    coverage_history_path, coverage_summary_path, industry_coverage_summary_path = update_coverage_history(output_root, day_runs)
+    hotspot_signals_path = None
+    hotspot_dashboard_path = None
+    if not args.no_hotspot:
+        hotspot_config = HotspotConfig(
+            recent_days=args.hotspot_days,
+            short_days=args.hotspot_short_days,
+            silent_days=args.hotspot_silent_days,
+            multi_broker_threshold=args.hotspot_broker_threshold,
+            hot_coverage_threshold=args.hotspot_coverage_threshold,
+        )
+        coverage_entries = read_coverage_history(coverage_history_path)
+        hotspot_signals_path, hotspot_dashboard_path = write_hotspot_outputs(output_root, coverage_entries, hotspot_config)
 
     print(
         json.dumps(
@@ -434,6 +454,11 @@ def main() -> None:
                 "error": sum(sum(r.status == "error" for r in run.results) for run in day_runs),
                 "range_summary": str(root_dir / "RANGE_SUMMARY.md") if len(day_runs) > 1 else None,
                 "range_dashboard": str(root_dir / "RANGE_DASHBOARD.md") if len(day_runs) > 1 else None,
+                "coverage_history": str(coverage_history_path),
+                "coverage_summary": str(coverage_summary_path),
+                "industry_coverage_summary": str(industry_coverage_summary_path),
+                "hotspot_signals": str(hotspot_signals_path) if hotspot_signals_path else None,
+                "hotspot_dashboard": str(hotspot_dashboard_path) if hotspot_dashboard_path else None,
             },
             ensure_ascii=False,
         )

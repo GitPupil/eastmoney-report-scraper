@@ -21,6 +21,8 @@ A research-oriented Eastmoney report scraper. It collects stock and industry res
 - Use text quality scoring to choose HTML or PDF extraction results.
 - Export Markdown reports, summaries, daily briefs, dashboards, CSV/XLSX indexes, and JSON inputs.
 - Export transparent `scoreReasons`, `scoreBreakdown`, and `qualityScore` fields.
+- Maintain historical coverage in `COVERAGE_HISTORY.jsonl` and company/industry coverage summaries.
+- Generate `HOTSPOT_DASHBOARD.md` and `HOTSPOT_SIGNALS.csv` for first coverage, reactivated coverage, multi-broker attention, and company-industry resonance.
 - v2 modular package layout with pytest regression tests.
 
 ## Quick Start
@@ -65,6 +67,11 @@ python scripts/fetch_reports.py --date 2026-05-12 --refresh-weak
 
 ```text
 eastmoney_reports/
+├── COVERAGE_HISTORY.jsonl
+├── COMPANY_COVERAGE_SUMMARY.csv
+├── INDUSTRY_COVERAGE_SUMMARY.csv
+├── HOTSPOT_DASHBOARD.md
+├── HOTSPOT_SIGNALS.csv
 └── 研报_2026-05-12/
     ├── 001——Some Company——Some Title.md
     ├── README.md
@@ -86,6 +93,8 @@ eastmoney_reports/
 
 For date-range jobs, the scraper also writes `RANGE_SUMMARY.md` and `RANGE_DASHBOARD.md`.
 
+`COVERAGE_HISTORY.jsonl` stores de-duplicated historical coverage records by `infoCode`. `COMPANY_COVERAGE_SUMMARY.csv` and `INDUSTRY_COVERAGE_SUMMARY.csv` summarize historical coverage counts. `HOTSPOT_DASHBOARD.md` and `HOTSPOT_SIGNALS.csv` highlight recent first coverage, reactivated names, multi-broker coverage, industry heat, and company-industry resonance.
+
 ## CLI Arguments
 
 | Argument | Description |
@@ -106,6 +115,12 @@ For date-range jobs, the scraper also writes `RANGE_SUMMARY.md` and `RANGE_DASHB
 | `--resume-errors-only` | Retry only previous errors |
 | `--min-text-length` | Mark extracted text below this length as `weak` |
 | `--manifest-name` | Customize run manifest file name |
+| `--hotspot-days` | Main hotspot window in days, default `30` |
+| `--hotspot-short-days` | Short hotspot window in days, default `7` |
+| `--hotspot-silent-days` | Silent window for reactivated coverage, default `90` |
+| `--hotspot-broker-threshold` | Distinct broker threshold, default `3` |
+| `--hotspot-coverage-threshold` | Coverage-count threshold, default `3` |
+| `--no-hotspot` | Skip hotspot dashboard and signal CSV |
 | `--no-pdf-fallback` | Disable PDF fallback |
 | `--no-xlsx` | Skip XLSX export |
 
@@ -118,6 +133,7 @@ eastmoney_report_scraper/
 ├── analysis.py
 ├── scoring.py
 ├── exporters.py
+├── hotspots.py
 └── cli.py
 ```
 
@@ -135,4 +151,3 @@ python -m ruff check . --no-cache
 ## License
 
 [MIT](./LICENSE)
-
