@@ -52,11 +52,13 @@ metadata:
 
 默认执行思路：
 
-1. 如果用户没有明确要全量，先用 `--limit 5` 小样本试跑。
-2. 单日任务优先用 `--date`；多日任务用 `--start-date` / `--end-date`。
-3. 默认使用兼容入口：`python3 {baseDir}/scripts/fetch_reports.py ...`。
-4. 正式批量抓取时并发保持保守：`--concurrency 2 --jitter 0.5`。
-5. 抓取完成后优先读取：
+1. 排障、首次使用或环境不确定时，先运行 `--doctor`。
+2. 如果用户没有明确要全量，先用 `--limit 5` 小样本试跑。
+3. 单日任务优先用 `--date`；多日任务用 `--start-date` / `--end-date`。
+4. 默认使用兼容入口：`python3 {baseDir}/scripts/fetch_reports.py ...`。
+5. 正式批量抓取时并发保持保守：`--concurrency 2 --jitter 0.5`。
+6. 只需要重算热点时，用 `--hotspots-only`，不要重新抓取网络。
+7. 抓取完成后优先读取：
    - `HOTSPOT_DASHBOARD.md`
    - `TRADING_DASHBOARD.md`
    - `SUMMARY.md`
@@ -65,16 +67,28 @@ metadata:
    - `COMPANY_COVERAGE_SUMMARY.csv`
    - `INDUSTRY_COVERAGE_SUMMARY.csv`
    - `ANALYSIS_INPUT.md`
-6. 排查失败或续跑时优先查看：
+8. 排查失败或续跑时优先查看：
    - `run_manifest.jsonl`
    - `run.log.jsonl`
 
 ## Command Recipes
 
+### 环境诊断
+
+```bash
+python3 {baseDir}/scripts/fetch_reports.py --doctor
+```
+
 ### 快速小样本
 
 ```bash
 python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --limit 5 --no-xlsx
+```
+
+### 只查看列表
+
+```bash
+python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --list-only --stock 润本股份
 ```
 
 ### 单日正式抓取
@@ -131,6 +145,12 @@ python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --output-dir ./east
 python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --hotspot-days 45 --hotspot-broker-threshold 4
 ```
 
+### 只重算热点
+
+```bash
+python3 {baseDir}/scripts/fetch_reports.py --hotspots-only --output-dir ./eastmoney_reports
+```
+
 ## Parameters
 
 | 参数 | 用途 |
@@ -159,6 +179,10 @@ python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --hotspot-days 45 -
 | `--hotspot-broker-threshold` | 多券商覆盖阈值，默认 3 家 |
 | `--hotspot-coverage-threshold` | 覆盖篇数热度阈值，默认 3 篇 |
 | `--no-hotspot` | 跳过热点看板和热点信号表 |
+| `--doctor` | 输出 JSON 环境诊断并退出 |
+| `--dry-run` | 只抓列表并输出计数，不抓详情 |
+| `--list-only` | 只抓列表并输出筛选后 JSON，不抓详情 |
+| `--hotspots-only` | 不请求网络，只基于历史覆盖重算热点 |
 | `--no-pdf-fallback` | 禁用 PDF fallback |
 | `--no-xlsx` | 跳过 xlsx 导出 |
 
@@ -227,7 +251,7 @@ RANGE_DASHBOARD.md
 当用户问“这个公司/行业是不是近期热点”“是不是第一次被调研”“有没有多家券商一起覆盖”“最近是否重新被关注”时，按这个顺序读文件：
 
 1. `HOTSPOT_DASHBOARD.md`：先给整体结论和分组排名。
-2. `HOTSPOT_SIGNALS.csv`：定位具体公司或行业，读取 `hotspotLevel`、`coverage7d`、`coverage30d`、`coverageAcceleration`、`brokerCount30d`、`newBrokerCount30d`、`reasons`。
+2. `HOTSPOT_SIGNALS.csv`：定位具体公司或行业，读取 `hotspotLevel`、`coverage7d`、`coverage30d`、`coverageAcceleration`、`brokerCount30d`、`newBrokerCount30d`、`reasonCodes`、`reasons`。
 3. `COVERAGE_HISTORY.jsonl`：需要解释“首次覆盖”或“沉寂后再覆盖”时，回看历史明细。
 4. `COMPANY_COVERAGE_SUMMARY.csv` / `INDUSTRY_COVERAGE_SUMMARY.csv`：需要回答历史覆盖次数、券商分布、评级分布时读取。
 
@@ -238,10 +262,17 @@ RANGE_DASHBOARD.md
 - `brokerCount30d >= 3`：默认视为多券商集中覆盖。
 - `coverage30d >= 3` 或 `coverageAcceleration >= 2`：默认视为近期热度抬升。
 - `hotspotLevel=STRONG`：优先汇报；通常来自“首次/再覆盖 + 多券商”或“公司与行业同时升温”。
+- `reasonCodes`：优先用于程序化判断，包含 `FIRST_COVERAGE`、`REACTIVATED_COVERAGE`、`MULTI_BROKER`、`COVERAGE_ACCELERATION`、`INDUSTRY_RESONANCE`、`HIGH_BUY_RATIO`。
 
 ## Troubleshooting
 
 ### xlsx 导出失败
+
+先看环境：
+
+```bash
+python3 {baseDir}/scripts/fetch_reports.py --doctor
+```
 
 安装 `openpyxl`，或加 `--no-xlsx` 跳过：
 

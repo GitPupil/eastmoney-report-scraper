@@ -1,161 +1,15 @@
-"""Output writers for report markdown, indexes, and briefs."""
+"""Daily report brief and dashboard exporters."""
 
 from __future__ import annotations
 
-import csv
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List
 
-from .analysis import build_structured_analysis
-from .constants import (
-    DEFAULT_COVERAGE_HISTORY_NAME,
-    DEFAULT_COVERAGE_SUMMARY_NAME,
-    DEFAULT_INDUSTRY_COVERAGE_SUMMARY_NAME,
-    DEFAULT_INDEX_NAME,
-    DETAIL_URL_TEMPLATE,
-)
-from .models import DayRun, FetchResult
-
-
-def _analysis_for(result: FetchResult) -> Dict[str, Any]:
-    if not result.structured_analysis:
-        result.structured_analysis = build_structured_analysis(result.item, result.text, result.summary)
-    return result.structured_analysis
-
-
-def build_markdown(item: Dict[str, Any], text: str, summary: List[str], source: str, quality_score: int = 0) -> str:
-    info_code = item.get("infoCode", "")
-    detail_url = DETAIL_URL_TEMPLATE.format(info_code=info_code)
-    analysis = build_structured_analysis(item, text, summary)
-    lines = [
-        f"# {item.get('title', '')}",
-        "",
-        f"- 股票名称：`{item.get('stockName', '')}`",
-        f"- 股票代码：`{item.get('stockCode', '')}`",
-        f"- 行业：`{item.get('industryName') or item.get('indvInduName') or ''}`",
-        f"- 机构：`{item.get('orgSName') or item.get('orgName') or ''}`",
-        f"- 日期：`{item.get('publishDate', '')}`",
-        f"- 评级：`{item.get('emRatingName') or item.get('sRatingName') or ''}`",
-        f"- 来源：`{source}`",
-        f"- 文本质量：`{quality_score}`",
-        f"- infoCode：`{info_code}`",
-        f"- 链接：`{detail_url}`",
-        "",
-        "## 自动摘要",
-        "",
-    ]
-    if summary:
-        lines.extend([f"- {bullet}" for bullet in summary])
-    else:
-        lines.append("- [未提取到有效摘要]")
-    lines.extend(
-        [
-            "",
-            "## 结构化分析",
-            "",
-            f"- 一句话结论：{analysis['headline']}",
-            f"- 核心驱动：{'；'.join(analysis['core_drivers']) if analysis['core_drivers'] else '[无]'}",
-            f"- 正向信号：{'；'.join(analysis['positive_signals']) if analysis['positive_signals'] else '[无明显正向标签]'}",
-            f"- 负向信号：{'；'.join(analysis['negative_signals']) if analysis['negative_signals'] else '[无明显负向标签]'}",
-            f"- 估值/评级：{'；'.join(analysis['valuation_and_rating']) if analysis['valuation_and_rating'] else '[原文未显式提取]'}",
-            f"- 交易含义：{'；'.join(analysis['trade_hint']) if analysis['trade_hint'] else '[无]'}",
-            f"- 风险：{'；'.join(analysis['risks']) if analysis['risks'] else '[无]'}",
-            f"- 信号评分：`{analysis['signal_score']}` / `100`（优先级：`{analysis['priority_bucket']}`）",
-            f"- 评分原因：{'；'.join(analysis['score_reasons']) if analysis['score_reasons'] else '[无]'}",
-            f"- 评分拆解：`{json.dumps(analysis['score_breakdown'], ensure_ascii=False)}`",
-            f"- 主题标签：{'；'.join(analysis['theme_tags']) if analysis['theme_tags'] else '[无]'}",
-            "",
-            "---",
-            "",
-            text or "[正文抽取为空]",
-            "",
-        ]
-    )
-    return "\n".join(lines)
-
-
-def write_csv_index(output_dir: Path, results: List[FetchResult]) -> Path:
-    index_path = output_dir / DEFAULT_INDEX_NAME
-    base_fields = [
-        "stockName",
-        "stockCode",
-        "industryName",
-        "title",
-        "orgName",
-        "publishDate",
-        "rating",
-        "infoCode",
-        "status",
-        "source",
-        "chars",
-        "summary",
-        "signalScore",
-        "priorityBucket",
-        "themeTags",
-        "ratingChange",
-        "targetPrice",
-        "epsForecast",
-        "peForecast",
-        "file",
-    ]
-    v2_fields = ["scoreReasons", "scoreBreakdown", "qualityScore"]
-    with index_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=base_fields + v2_fields)
-        writer.writeheader()
-        for result in results:
-            item = result.item
-            structured = _analysis_for(result)
-            valuation_fields = structured.get("valuation_fields") or {}
-            writer.writerow(
-                {
-                    "stockName": item.get("stockName") or "",
-                    "stockCode": item.get("stockCode") or "",
-                    "industryName": item.get("industryName") or item.get("indvInduName") or "",
-                    "title": item.get("title") or "",
-                    "orgName": item.get("orgSName") or item.get("orgName") or "",
-                    "publishDate": item.get("publishDate") or "",
-                    "rating": item.get("emRatingName") or item.get("sRatingName") or "",
-                    "infoCode": item.get("infoCode") or "",
-                    "status": result.status,
-                    "source": result.source,
-                    "chars": len(result.text),
-                    "summary": " | ".join(result.summary),
-                    "signalScore": structured.get("signal_score", ""),
-                    "priorityBucket": structured.get("priority_bucket", ""),
-                    "themeTags": " | ".join(structured.get("theme_tags", [])),
-                    "ratingChange": valuation_fields.get("rating_change", ""),
-                    "targetPrice": " | ".join(valuation_fields.get("target_price", [])),
-                    "epsForecast": " | ".join(valuation_fields.get("eps", [])),
-                    "peForecast": " | ".join(valuation_fields.get("pe", [])),
-                    "file": result.output_path.name if result.output_path else "",
-                    "scoreReasons": " | ".join(structured.get("score_reasons", [])),
-                    "scoreBreakdown": json.dumps(structured.get("score_breakdown", {}), ensure_ascii=False),
-                    "qualityScore": result.quality_score,
-                }
-            )
-    return index_path
-
-
-def write_xlsx_index(output_dir: Path, csv_index_path: Path, log_path: Path) -> Optional[Path]:
-    xlsx_path = output_dir / "report_index.xlsx"
-    try:
-        import openpyxl
-    except ImportError:
-        from .utils import log_event
-
-        log_event(log_path, "warn", "xlsx_export_skipped", reason="openpyxl not installed")
-        return None
-
-    workbook = openpyxl.Workbook()
-    sheet = workbook.active
-    with csv_index_path.open("r", encoding="utf-8", newline="") as handle:
-        for row in csv.reader(handle):
-            sheet.append(row)
-    workbook.save(xlsx_path)
-    return xlsx_path
-
+from ..models import FetchResult
+from .common import _analysis_for
+from .indexes import write_csv_index, write_xlsx_index
 
 def write_day_summary(output_dir: Path, target_date: str, qtype: int, raw_list: List[Dict[str, Any]], results: Iterable[FetchResult], log_path: Path) -> None:
     results = list(results)
@@ -211,7 +65,6 @@ def write_day_summary(output_dir: Path, target_date: str, qtype: int, raw_list: 
 
     csv_index_path = write_csv_index(output_dir, results)
     write_xlsx_index(output_dir, csv_index_path, log_path)
-
 
 def _write_summary_and_analysis(output_dir: Path, target_date: str, results: List[FetchResult]) -> List[Dict[str, Any]]:
     summary_lines = [
@@ -294,7 +147,6 @@ def _write_summary_and_analysis(output_dir: Path, target_date: str, results: Lis
     (output_dir / "ANALYSIS_INPUT.md").write_text("\n".join(analysis_prompt_lines), encoding="utf-8")
     return analysis_input
 
-
 def build_daily_brief(target_date: str, analysis_input: List[Dict[str, Any]]) -> str:
     positive_count = 0
     negative_count = 0
@@ -343,7 +195,6 @@ def build_daily_brief(target_date: str, analysis_input: List[Dict[str, Any]]) ->
     lines.extend(signals[:10] if signals else ["- [样本不足]"])
     return "\n".join(lines) + "\n"
 
-
 def build_top_signals(target_date: str, analysis_input: List[Dict[str, Any]]) -> str:
     positive_names = []
     risk_names = []
@@ -376,7 +227,6 @@ def build_top_signals(target_date: str, analysis_input: List[Dict[str, Any]]) ->
     lines.extend(risk_names[:10] if risk_names else ["- [无显式风险提取]"])
     return "\n".join(lines) + "\n"
 
-
 def build_sector_brief(target_date: str, analysis_input: List[Dict[str, Any]]) -> str:
     grouped: Dict[str, List[Dict[str, Any]]] = {}
     for entry in analysis_input:
@@ -402,7 +252,6 @@ def build_sector_brief(target_date: str, analysis_input: List[Dict[str, Any]]) -
             lines.append(f"- 估值/评级标签：{'；'.join(valuation_tags[:4])}")
         lines.append("")
     return "\n".join(lines) + "\n"
-
 
 def build_theme_brief(target_date: str, analysis_input: List[Dict[str, Any]]) -> str:
     theme_keywords = {
@@ -436,7 +285,6 @@ def build_theme_brief(target_date: str, analysis_input: List[Dict[str, Any]]) ->
             lines.append("- [无明显样本]")
         lines.append("")
     return "\n".join(lines) + "\n"
-
 
 def build_trading_dashboard(target_date: str, analysis_input: List[Dict[str, Any]]) -> str:
     ranked = sorted(analysis_input, key=lambda entry: entry["structured_analysis"].get("signal_score", 0), reverse=True)
@@ -504,7 +352,6 @@ def build_trading_dashboard(target_date: str, analysis_input: List[Dict[str, Any
     lines.extend([f"- `{name}`：覆盖 `{count}` 篇" for name, count in active_brokers] if active_brokers else ["- [无样本]"])
     return "\n".join(lines) + "\n"
 
-
 def build_consensus_brief(target_date: str, analysis_input: List[Dict[str, Any]]) -> str:
     grouped: Dict[str, List[Dict[str, Any]]] = {}
     for entry in analysis_input:
@@ -537,246 +384,5 @@ def build_consensus_brief(target_date: str, analysis_input: List[Dict[str, Any]]
         lines.append(f"- 目标价：{'；'.join(target_prices) if target_prices else '[无显式目标价]'}")
         lines.append(f"- EPS：{'；'.join(eps_values) if eps_values else '[无显式 EPS]'}")
         lines.append(f"- 平均信号分：`{round(sum(scores) / max(1, len(scores)), 1)}`")
-        lines.append("")
-    return "\n".join(lines) + "\n"
-
-
-def write_range_summary(root_dir: Path, day_runs: List[DayRun], qtype: int) -> None:
-    if len(day_runs) <= 1:
-        return
-    qtype_name = "个股研报" if qtype == 0 else "行业研报"
-    total_list = sum(len(run.raw_list) for run in day_runs)
-    total_fetched = sum(len(run.results) for run in day_runs)
-    total_ok = sum(sum(r.status == "ok" for r in run.results) for run in day_runs)
-    total_weak = sum(sum(r.status == "weak" for r in run.results) for run in day_runs)
-    total_error = sum(sum(r.status == "error" for r in run.results) for run in day_runs)
-    lines = [
-        "# 东方财富研报区间汇总",
-        "",
-        f"- 类型：`{qtype_name}`",
-        f"- 日期区间：`{day_runs[0].date_str}` → `{day_runs[-1].date_str}`",
-        f"- 列表总数：`{total_list}`",
-        f"- 抓取篇数：`{total_fetched}`",
-        f"- 成功：`{total_ok}` | 弱提取：`{total_weak}` | 失败：`{total_error}`",
-        "",
-        "| 日期 | 列表总数 | 抓取篇数 | 成功 | 弱提取 | 失败 | 目录 |",
-        "|---|---:|---:|---:|---:|---:|---|",
-    ]
-    for run in day_runs:
-        lines.append(
-            f"| {run.date_str} | {len(run.raw_list)} | {len(run.results)} | {sum(r.status == 'ok' for r in run.results)} | {sum(r.status == 'weak' for r in run.results)} | {sum(r.status == 'error' for r in run.results)} | {run.output_dir.name} |"
-        )
-    (root_dir / "RANGE_SUMMARY.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    (root_dir / "RANGE_DASHBOARD.md").write_text(build_range_dashboard(day_runs), encoding="utf-8")
-
-
-def _split_theme_tags(value: Any) -> List[str]:
-    if isinstance(value, list):
-        return [str(tag).strip() for tag in value if str(tag).strip()]
-    if isinstance(value, str):
-        return [part.strip() for part in re.split(r"[|,，；;]", value) if part.strip()]
-    return []
-
-
-def _normalize_coverage_entry(entry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    info_code = str(entry.get("infoCode") or "").strip()
-    stock_code = str(entry.get("stockCode") or "").strip()
-    stock_name = str(entry.get("stockName") or "").strip()
-    industry_name = str(entry.get("industryName") or entry.get("indvInduName") or "").strip()
-    if not info_code or not (stock_code or stock_name or industry_name):
-        return None
-
-    report_type = str(entry.get("reportType") or "").strip()
-    if report_type not in {"stock", "industry"}:
-        report_type = "stock" if stock_code or stock_name else "industry"
-
-    return {
-        "infoCode": info_code,
-        "reportType": report_type,
-        "stockCode": stock_code,
-        "stockName": stock_name,
-        "industryName": industry_name,
-        "orgName": str(entry.get("orgName") or entry.get("orgSName") or "").strip(),
-        "rating": str(entry.get("rating") or entry.get("emRatingName") or entry.get("sRatingName") or "").strip(),
-        "publishDate": str(entry.get("publishDate") or "").strip(),
-        "title": str(entry.get("title") or "").strip(),
-        "themeTags": _split_theme_tags(entry.get("themeTags")),
-        "signalScore": entry.get("signalScore", entry.get("signal_score", "")),
-        "priorityBucket": str(entry.get("priorityBucket") or entry.get("priority_bucket") or "").strip(),
-    }
-
-
-def _coverage_entry_from_result(result: FetchResult) -> Optional[Dict[str, Any]]:
-    item = result.item
-    analysis = _analysis_for(result)
-    return _normalize_coverage_entry(
-        {
-            "infoCode": item.get("infoCode") or "",
-            "reportType": "stock" if item.get("stockCode") or item.get("stockName") else "industry",
-            "stockCode": item.get("stockCode") or "",
-            "stockName": item.get("stockName") or "",
-            "industryName": item.get("industryName") or item.get("indvInduName") or "",
-            "orgName": item.get("orgSName") or item.get("orgName") or "",
-            "rating": item.get("emRatingName") or item.get("sRatingName") or "",
-            "publishDate": item.get("publishDate") or "",
-            "title": item.get("title") or "",
-            "themeTags": analysis.get("theme_tags") or [],
-            "signalScore": analysis.get("signal_score", ""),
-            "priorityBucket": analysis.get("priority_bucket", ""),
-        }
-    )
-
-
-def read_coverage_history(history_path: Path) -> Dict[str, Dict[str, Any]]:
-    entries: Dict[str, Dict[str, Any]] = {}
-    if not history_path.exists():
-        return entries
-    with history_path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            normalized = _normalize_coverage_entry(entry)
-            if normalized:
-                entries[normalized["infoCode"]] = normalized
-    return entries
-
-
-def write_coverage_history(history_path: Path, entries: Dict[str, Dict[str, Any]]) -> None:
-    ordered = sorted(
-        entries.values(),
-        key=lambda entry: (
-            entry.get("stockCode") or "",
-            entry.get("stockName") or "",
-            entry.get("industryName") or "",
-            entry.get("publishDate") or "",
-            entry.get("infoCode") or "",
-        ),
-    )
-    with history_path.open("w", encoding="utf-8") as handle:
-        for entry in ordered:
-            handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
-
-
-def write_company_coverage_summary(summary_path: Path, entries: Dict[str, Dict[str, Any]]) -> None:
-    grouped: Dict[tuple[str, str, str, str], set[str]] = {}
-    for entry in entries.values():
-        stock_code = entry.get("stockCode") or ""
-        stock_name = entry.get("stockName") or ""
-        if not stock_code and not stock_name:
-            continue
-        key = (
-            stock_code,
-            stock_name,
-            entry.get("orgName") or "",
-            entry.get("rating") or "",
-        )
-        grouped.setdefault(key, set()).add(entry.get("infoCode") or "")
-
-    rows = sorted(
-        [
-            {
-                "stockCode": stock_code,
-                "stockName": stock_name,
-                "orgName": org_name,
-                "rating": rating,
-                "coverageCount": len({info_code for info_code in info_codes if info_code}),
-            }
-            for (stock_code, stock_name, org_name, rating), info_codes in grouped.items()
-        ],
-        key=lambda row: (-row["coverageCount"], row["stockCode"], row["stockName"], row["orgName"], row["rating"]),
-    )
-
-    with summary_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=["stockCode", "stockName", "orgName", "rating", "coverageCount"],
-        )
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def write_industry_coverage_summary(summary_path: Path, entries: Dict[str, Dict[str, Any]]) -> None:
-    grouped: Dict[tuple[str, str, str], set[str]] = {}
-    for entry in entries.values():
-        industry_name = entry.get("industryName") or ""
-        if not industry_name:
-            continue
-        key = (
-            industry_name,
-            entry.get("orgName") or "",
-            entry.get("rating") or "",
-        )
-        grouped.setdefault(key, set()).add(entry.get("infoCode") or "")
-
-    rows = sorted(
-        [
-            {
-                "industryName": industry_name,
-                "orgName": org_name,
-                "rating": rating,
-                "coverageCount": len({info_code for info_code in info_codes if info_code}),
-            }
-            for (industry_name, org_name, rating), info_codes in grouped.items()
-        ],
-        key=lambda row: (-row["coverageCount"], row["industryName"], row["orgName"], row["rating"]),
-    )
-
-    with summary_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=["industryName", "orgName", "rating", "coverageCount"],
-        )
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def update_coverage_history(output_root: Path, day_runs: List[DayRun]) -> tuple[Path, Path, Path]:
-    output_root.mkdir(parents=True, exist_ok=True)
-    history_path = output_root / DEFAULT_COVERAGE_HISTORY_NAME
-    company_summary_path = output_root / DEFAULT_COVERAGE_SUMMARY_NAME
-    industry_summary_path = output_root / DEFAULT_INDUSTRY_COVERAGE_SUMMARY_NAME
-    entries = read_coverage_history(history_path)
-    for run in day_runs:
-        for result in run.results:
-            entry = _coverage_entry_from_result(result)
-            if entry:
-                entries[entry["infoCode"]] = entry
-    write_coverage_history(history_path, entries)
-    write_company_coverage_summary(company_summary_path, entries)
-    write_industry_coverage_summary(industry_summary_path, entries)
-    return history_path, company_summary_path, industry_summary_path
-
-
-def build_range_dashboard(day_runs: List[DayRun]) -> str:
-    industry_by_day: Dict[str, Dict[str, int]] = {}
-    theme_by_day: Dict[str, Dict[str, int]] = {}
-    stock_by_day: Dict[str, Dict[str, int]] = {}
-    for run in day_runs:
-        industry_by_day.setdefault(run.date_str, {})
-        theme_by_day.setdefault(run.date_str, {})
-        stock_by_day.setdefault(run.date_str, {})
-        for result in run.results:
-            analysis = _analysis_for(result)
-            item = result.item
-            industry = item.get("industryName") or item.get("indvInduName") or "未标注行业"
-            stock = item.get("stockName") or item.get("industryName") or "未知标的"
-            industry_by_day[run.date_str][industry] = industry_by_day[run.date_str].get(industry, 0) + 1
-            stock_by_day[run.date_str][stock] = stock_by_day[run.date_str].get(stock, 0) + 1
-            for tag in analysis.get("theme_tags") or []:
-                theme_by_day[run.date_str][tag] = theme_by_day[run.date_str].get(tag, 0) + 1
-
-    lines = ["# RANGE_DASHBOARD", "", f"- 覆盖日期：`{len(day_runs)}`", ""]
-    for title, grouped in (("Industry Heat", industry_by_day), ("Theme Heat", theme_by_day), ("Stock Heat", stock_by_day)):
-        lines.append(f"## {title}")
-        lines.append("")
-        for day, counter in grouped.items():
-            top = sorted(counter.items(), key=lambda item: item[1], reverse=True)[:5]
-            rendered = "；".join([f"{name}={count}" for name, count in top]) if top else "[无样本]"
-            lines.append(f"- `{day}`：{rendered}")
         lines.append("")
     return "\n".join(lines) + "\n"

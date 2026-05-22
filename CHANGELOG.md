@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-05-21
+
+### Added
+- GitHub Actions CI for Python 3.9, 3.10, 3.11, and 3.12
+- fixture-based parser and analysis regression tests
+- CLI modes:
+  - `--doctor`
+  - `--dry-run`
+  - `--list-only`
+  - `--hotspots-only`
+- hotspot `reasonCodes` and `coveredCompanyCount30d` CSV fields
+- broker name normalization hook for hotspot aggregation
+
+### Changed
+- split `eastmoney_report_scraper/exporters.py` into the `eastmoney_report_scraper/exporters/` package
+- kept exporter public imports compatible through `exporters/__init__.py`
+- improved hotspot dashboard reason rendering
+- updated README, DEVELOPMENT, and SKILL guidance for public reliability workflows
+
 ## [0.2.0] - 2026-05-13
 
 ### Added

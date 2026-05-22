@@ -38,10 +38,11 @@ python3 scripts/fetch_reports.py --date 2026-05-12 --concurrency 2
 Recommended minimum validation after changes:
 
 ```bash
-python3 -m py_compile scripts/fetch_reports.py
-python3 scripts/fetch_reports.py --help
-python3 -m pytest -q
-python3 scripts/fetch_reports.py --date 2026-05-12 --limit 2 --output-dir /tmp/eastmoney_check
+python -B -m pytest -q -p no:cacheprovider
+python -m ruff check . --no-cache
+python scripts/fetch_reports.py --help
+python -m py_compile scripts/fetch_reports.py
+python scripts/fetch_reports.py --doctor
 ```
 
 Check that at least these outputs exist:
@@ -54,21 +55,58 @@ Check that at least these outputs exist:
 - `run_manifest.jsonl`
 - `CONSENSUS_BRIEF.md`
 
+Optional real-network smoke test:
+
+```bash
+python scripts/fetch_reports.py --date 2026-05-12 --limit 2 --output-dir /tmp/eastmoney_check
+```
+
 ## Current Codebase Shape
 
 A `pyproject.toml` is included so the repository has a standard Python project shape.
-The v2 implementation keeps `scripts/fetch_reports.py` as a compatibility entrypoint and moves core logic into:
+The implementation keeps `scripts/fetch_reports.py` as a compatibility entrypoint and moves core logic into:
 
 - `eastmoney_report_scraper/client.py`
 - `eastmoney_report_scraper/parser.py`
 - `eastmoney_report_scraper/analysis.py`
 - `eastmoney_report_scraper/scoring.py`
-- `eastmoney_report_scraper/exporters.py`
+- `eastmoney_report_scraper/exporters/`
+- `eastmoney_report_scraper/hotspots.py`
 - `eastmoney_report_scraper/cli.py`
+
+## Fixtures
+
+Regression fixtures live in `tests/fixtures/`.
+
+- Keep fixtures small and artificial.
+- Do not commit long real report bodies.
+- Prefer one focused sample per behavior: standard stock HTML, industry HTML, weak HTML, malformed HTML, and PDF text.
+- When parser behavior changes, update tests first so the expected extraction semantics are clear.
+
+## CI
+
+GitHub Actions runs the same local checks on Python 3.9, 3.10, 3.11, and 3.12:
+
+```bash
+python -B -m pytest -q -p no:cacheprovider
+python -m ruff check . --no-cache
+python scripts/fetch_reports.py --help
+python -m py_compile scripts/fetch_reports.py
+```
+
+## Release Checklist
+
+Before tagging a release:
+
+- Update `pyproject.toml` and `eastmoney_report_scraper/__init__.py`.
+- Update README badges and version status.
+- Add a dated section to `CHANGELOG.md`.
+- Run the smoke validation commands.
+- Push to `main` and confirm CI is green.
 
 ## Recommended Next Engineering Steps
 
-- add more regression fixtures for parsing and analysis
-- add lint / format tooling
-- add CI for syntax / smoke validation
-- calibrate quality scoring and signal scoring on real report samples
+- expand fixture coverage for parser edge cases
+- keep calibrating quality scoring and signal scoring on small samples
+- improve PDF text cleanup
+- deepen range-level synthesis

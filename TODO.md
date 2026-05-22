@@ -1,6 +1,6 @@
 # TODO
 
-## 0.2.0 Current Status
+## 0.3.0 Current Status
 
 ### Landed
 - [x] Modular package layout
@@ -12,13 +12,17 @@
 - [x] Daily briefs, trading dashboard, consensus brief, and range dashboard
 - [x] Historical company and industry coverage summaries
 - [x] Hotspot dashboard and hotspot signal CSV
+- [x] Hotspot reason codes and broker normalization hook
+- [x] CLI lightweight modes: `--doctor`, `--dry-run`, `--list-only`, `--hotspots-only`
+- [x] Exporter package split with compatible public imports
+- [x] GitHub Actions CI
+- [x] Network-free parser and CLI fixtures
 - [x] Pytest regression tests and ruff checks
 
 ## Remaining Work
 
 ### Extraction
 - [ ] Improve PDF text cleanup
-- [ ] Add a small checked-in regression fixture set
 - [ ] Further reduce noisy summary bullets
 
 ### Analysis
@@ -30,9 +34,8 @@
 ### Research Outputs
 - [ ] Deepen consensus and divergence summaries
 - [ ] Add richer range-level synthesis for repeated multi-day runs
-- [ ] Add more explicit hotspot reason categories for downstream agents
+- [ ] Calibrate hotspot reason categories on real small samples
 
 ### Engineering
-- [ ] Add GitHub Actions for pytest and ruff
-- [ ] Add smoke-test fixtures that do not require network access
 - [ ] Document release tagging workflow
+- [ ] Add public examples and sample output screenshots

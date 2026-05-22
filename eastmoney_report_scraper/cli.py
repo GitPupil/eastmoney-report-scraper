@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import random
 import re
+import shutil
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
@@ -14,7 +17,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .analysis import build_structured_analysis, extract_summary
 from .client import fetch_report_list, http_get_with_retry
-from .constants import DEFAULT_MANIFEST_NAME, DEFAULT_OUTPUT_ROOT, DETAIL_URL_TEMPLATE
+from .constants import DEFAULT_COVERAGE_HISTORY_NAME, DEFAULT_MANIFEST_NAME, DEFAULT_OUTPUT_ROOT, DETAIL_URL_TEMPLATE
 from .exporters import build_markdown, read_coverage_history, update_coverage_history, write_day_summary, write_range_summary
 from .hotspots import HotspotConfig, write_hotspot_outputs
 from .models import DayRun, FetchResult
@@ -371,6 +374,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hotspot-broker-threshold", type=int, default=3, help="Distinct broker threshold for hotspot detection")
     parser.add_argument("--hotspot-coverage-threshold", type=int, default=3, help="Coverage count threshold for hotspot detection")
     parser.add_argument("--no-hotspot", action="store_true", help="Skip HOTSPOT_DASHBOARD.md and HOTSPOT_SIGNALS.csv outputs")
+    parser.add_argument("--doctor", action="store_true", help="Print JSON environment diagnostics and exit")
+    parser.add_argument("--dry-run", action="store_true", help="Fetch list pages and show selected counts without fetching report details")
+    parser.add_argument("--list-only", action="store_true", help="Fetch list pages, print selected list JSON, and skip report details")
+    parser.add_argument("--hotspots-only", action="store_true", help="Rebuild hotspot files from existing coverage history without network requests")
     return parser.parse_args()
 
 
@@ -378,6 +385,108 @@ def make_root_dir(output_root: Path, date_values: List[str]) -> Path:
     if len(date_values) == 1:
         return output_root / f"研报_{date_values[0]}"
     return output_root / f"研报_{date_values[0]}_to_{date_values[-1]}"
+
+
+def build_hotspot_config(args: argparse.Namespace) -> HotspotConfig:
+    return HotspotConfig(
+        recent_days=args.hotspot_days,
+        short_days=args.hotspot_short_days,
+        silent_days=args.hotspot_silent_days,
+        multi_broker_threshold=args.hotspot_broker_threshold,
+        hot_coverage_threshold=args.hotspot_coverage_threshold,
+    )
+
+
+def _check_output_writable(output_root: Path) -> Dict[str, Any]:
+    try:
+        output_root.mkdir(parents=True, exist_ok=True)
+        check_path = output_root / ".doctor_write_check"
+        check_path.write_text("ok", encoding="utf-8")
+        cleanup_error = ""
+        try:
+            check_path.unlink()
+        except Exception as exc:  # noqa: BLE001
+            cleanup_error = repr(exc)
+        return {"ok": True, "error": "", "checkFile": str(check_path), "cleanupError": cleanup_error}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": repr(exc), "checkFile": "", "cleanupError": ""}
+
+
+def run_doctor(output_root: Path) -> None:
+    writable = _check_output_writable(output_root)
+    checks = {
+        "pythonVersion": sys.version.split()[0],
+        "beautifulsoup4": importlib.util.find_spec("bs4") is not None,
+        "openpyxl": importlib.util.find_spec("openpyxl") is not None,
+        "pdftotext": shutil.which("pdftotext") is not None,
+        "outputDirWritable": writable["ok"],
+    }
+    print(
+        json.dumps(
+            {
+                "mode": "doctor",
+                "ok": bool(checks["beautifulsoup4"] and checks["outputDirWritable"]),
+                "output_dir": str(output_root),
+                "checks": checks,
+                "check_file": writable["checkFile"],
+                "errors": {"outputDirWritable": writable["error"]} if writable["error"] else {},
+                "warnings": {"doctorCheckCleanup": writable["cleanupError"]} if writable["cleanupError"] else {},
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
+def run_hotspots_only(output_root: Path, args: argparse.Namespace) -> None:
+    coverage_history_path = output_root / DEFAULT_COVERAGE_HISTORY_NAME
+    coverage_entries = read_coverage_history(coverage_history_path)
+    hotspot_signals_path, hotspot_dashboard_path = write_hotspot_outputs(output_root, coverage_entries, build_hotspot_config(args))
+    print(
+        json.dumps(
+            {
+                "mode": "hotspots-only",
+                "coverage_history": str(coverage_history_path),
+                "coverage_entries": len(coverage_entries),
+                "hotspot_signals": str(hotspot_signals_path),
+                "hotspot_dashboard": str(hotspot_dashboard_path),
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
+def run_list_mode(date_values: List[str], root_dir: Path, args: argparse.Namespace, include_items: bool) -> None:
+    root_dir.mkdir(parents=True, exist_ok=True)
+    days = []
+    for target_date in date_values:
+        output_dir = root_dir if args.date else root_dir / f"研报_{target_date}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        log_path = output_dir / "run.log.jsonl"
+        raw_list = fetch_report_list(target_date, args.page_size, args.qtype, args.timeout, args.retries, args.retry_delay, log_path)
+        filtered_list = filter_items(raw_list, args)
+        selected = filtered_list[: args.limit] if args.limit else filtered_list
+        day_entry = {
+            "date": target_date,
+            "raw_count": len(raw_list),
+            "filtered_count": len(filtered_list),
+            "selected_count": len(selected),
+        }
+        if include_items:
+            day_entry["items"] = selected
+        days.append(day_entry)
+    print(
+        json.dumps(
+            {
+                "mode": "list-only" if include_items else "dry-run",
+                "root_dir": str(root_dir),
+                "dates": date_values,
+                "days": days,
+                "list_count": sum(day["raw_count"] for day in days),
+                "selected_count": sum(day["selected_count"] for day in days),
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 def run_for_date(target_date: str, root_dir: Path, args: argparse.Namespace) -> DayRun:
@@ -417,10 +526,20 @@ def run_for_date(target_date: str, root_dir: Path, args: argparse.Namespace) -> 
 
 def main() -> None:
     args = parse_args()
-    date_values = resolve_dates(args)
     output_root = Path(args.output_dir).expanduser() if args.output_dir else DEFAULT_OUTPUT_ROOT
+    if args.doctor:
+        run_doctor(output_root)
+        return
+    if args.hotspots_only:
+        run_hotspots_only(output_root, args)
+        return
+
+    date_values = resolve_dates(args)
     root_dir = make_root_dir(output_root, date_values)
     root_dir.mkdir(parents=True, exist_ok=True)
+    if args.dry_run or args.list_only:
+        run_list_mode(date_values, root_dir, args, include_items=args.list_only)
+        return
 
     day_runs: List[DayRun] = []
     for target_date in date_values:
@@ -431,15 +550,8 @@ def main() -> None:
     hotspot_signals_path = None
     hotspot_dashboard_path = None
     if not args.no_hotspot:
-        hotspot_config = HotspotConfig(
-            recent_days=args.hotspot_days,
-            short_days=args.hotspot_short_days,
-            silent_days=args.hotspot_silent_days,
-            multi_broker_threshold=args.hotspot_broker_threshold,
-            hot_coverage_threshold=args.hotspot_coverage_threshold,
-        )
         coverage_entries = read_coverage_history(coverage_history_path)
-        hotspot_signals_path, hotspot_dashboard_path = write_hotspot_outputs(output_root, coverage_entries, hotspot_config)
+        hotspot_signals_path, hotspot_dashboard_path = write_hotspot_outputs(output_root, coverage_entries, build_hotspot_config(args))
 
     print(
         json.dumps(

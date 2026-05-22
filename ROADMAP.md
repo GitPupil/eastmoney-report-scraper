@@ -1,10 +1,10 @@
 # Roadmap
 
-## 0.2.0 Landed
+## 0.3.0 Landed
 
 - Modular package layout under `eastmoney_report_scraper/`
 - Compatibility script entrypoint in `scripts/fetch_reports.py`
-- Parser, analysis, scoring, exporter, CLI, and hotspot modules
+- Parser, analysis, scoring, exporter package, CLI, and hotspot modules
 - Run manifest for weak/error resume workflows
 - Text quality scoring for HTML/PDF selection
 - Score reasons and score breakdown exports
@@ -16,26 +16,27 @@
 - Hotspot files:
   - `HOTSPOT_DASHBOARD.md`
   - `HOTSPOT_SIGNALS.csv`
-- Pytest regression tests and ruff development checks
+- Hotspot reason codes and broker normalization hook
+- CLI lightweight modes: `--doctor`, `--dry-run`, `--list-only`, `--hotspots-only`
+- GitHub Actions CI
+- Pytest fixtures and ruff development checks
 
 ---
 
 ## Next Milestones
 
-### 0.3.0: Extraction Reliability
-- Add small HTML/PDF regression fixtures
+### 0.4.0: Extraction Reliability
 - Improve PDF text cleanup
 - Reduce noisy summary bullets
 - Add stronger handling for malformed pages
 
-### 0.4.0: Research Depth
+### 0.5.0: Research Depth
 - Improve headline and core-driver quality
 - Deepen consensus and divergence summaries
 - Add richer range-level synthesis
-- Refine hotspot reason categories for downstream agents
+- Calibrate hotspot reason categories on real small samples
 
-### 0.5.0: Developer Experience
-- Add GitHub Actions for pytest and ruff
-- Add network-free smoke fixtures
+### 0.6.0: Developer Experience
 - Document release tagging and publishing workflow
 - Expand public examples and sample output screenshots
+- Add richer contribution examples

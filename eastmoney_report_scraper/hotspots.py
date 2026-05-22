@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import csv
 import json
+import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -30,7 +32,16 @@ SIGNAL_FIELDS = [
     "buyRatio",
     "latestPublishDate",
     "reasons",
+    "reasonCodes",
+    "coveredCompanyCount30d",
 ]
+
+FIRST_COVERAGE = "FIRST_COVERAGE"
+REACTIVATED_COVERAGE = "REACTIVATED_COVERAGE"
+MULTI_BROKER = "MULTI_BROKER"
+COVERAGE_ACCELERATION = "COVERAGE_ACCELERATION"
+INDUSTRY_RESONANCE = "INDUSTRY_RESONANCE"
+HIGH_BUY_RATIO = "HIGH_BUY_RATIO"
 
 
 @dataclass(frozen=True)
@@ -69,6 +80,11 @@ def _split_tags(value: Any) -> List[str]:
     return []
 
 
+def normalize_broker_name(value: Any) -> str:
+    text = unicodedata.normalize("NFKC", str(value or ""))
+    return re.sub(r"\s+", "", text).strip()
+
+
 def _entry_values(entries: Any) -> Iterable[Dict[str, Any]]:
     if isinstance(entries, dict):
         return entries.values()
@@ -93,7 +109,7 @@ def normalize_coverage_entries(entries: Any) -> List[Dict[str, Any]]:
             "stockCode": stock_code,
             "stockName": stock_name,
             "industryName": industry_name,
-            "orgName": str(raw.get("orgName") or raw.get("orgSName") or "").strip(),
+            "orgName": normalize_broker_name(raw.get("orgName") or raw.get("orgSName") or ""),
             "rating": str(raw.get("rating") or raw.get("emRatingName") or raw.get("sRatingName") or "").strip(),
             "publishDate": str(raw.get("publishDate") or "").strip(),
             "title": str(raw.get("title") or "").strip(),
@@ -232,16 +248,24 @@ def _industry_signal(
     strong = hot and metrics["brokerCount30d"] >= config.multi_broker_threshold and len(covered_companies) >= config.hot_coverage_threshold
 
     reasons: List[str] = []
+    reason_codes: List[str] = []
     if metrics["isFirstCoverage"]:
         reasons.append("近期首次覆盖行业")
+        reason_codes.append(FIRST_COVERAGE)
     if metrics["isReactivatedCoverage"]:
         reasons.append(f"{config.silent_days}日沉寂后再覆盖")
+        reason_codes.append(REACTIVATED_COVERAGE)
     if metrics["coverage30d"] >= config.hot_coverage_threshold:
         reasons.append(f"{config.recent_days}日覆盖{metrics['coverage30d']}篇")
     if metrics["brokerCount30d"] >= config.multi_broker_threshold:
         reasons.append(f"{config.recent_days}日{metrics['brokerCount30d']}家券商覆盖")
+        reason_codes.append(MULTI_BROKER)
     if metrics["coverageAcceleration"] >= 2:
         reasons.append(f"覆盖加速+{metrics['coverageAcceleration']}")
+        reason_codes.append(COVERAGE_ACCELERATION)
+    if metrics["buyRatio"] >= 0.6 and metrics["coverage30d"] >= 2:
+        reasons.append(f"买入类评级占比{metrics['buyRatio']:.0%}")
+        reason_codes.append(HIGH_BUY_RATIO)
     if covered_companies:
         reasons.append(f"覆盖{len(covered_companies)}家公司")
 
@@ -253,6 +277,7 @@ def _industry_signal(
         "hotspotLevel": _level_from_reasons(reasons, bool(recent), hot, strong),
         "coveredCompanyCount30d": len(covered_companies),
         "reasons": reasons,
+        "reasonCodes": reason_codes,
         **{key: value for key, value in metrics.items() if key not in {"recent", "short", "previous"}},
     }
 
@@ -271,7 +296,8 @@ def _company_signal(
     stock_name = _dominant_value(source_entries, "stockName") or stock_key
     stock_code = _dominant_value(source_entries, "stockCode")
     industry_name = _dominant_value(source_entries, "industryName")
-    industry_hot = industry_levels.get(industry_name) in {"HOT", "STRONG"}
+    industry_level = industry_levels.get(industry_name, "NONE")
+    industry_hot = industry_level in {"HOT", "STRONG"}
 
     hot = (
         metrics["coverage30d"] >= config.hot_coverage_threshold
@@ -283,28 +309,39 @@ def _company_signal(
     ) or (hot and industry_hot)
 
     reasons: List[str] = []
+    reason_codes: List[str] = []
     if metrics["isFirstCoverage"]:
         reasons.append("近期首次被覆盖")
+        reason_codes.append(FIRST_COVERAGE)
     if metrics["isReactivatedCoverage"]:
         reasons.append(f"{config.silent_days}日沉寂后再覆盖")
+        reason_codes.append(REACTIVATED_COVERAGE)
     if metrics["coverage30d"] >= config.hot_coverage_threshold:
         reasons.append(f"{config.recent_days}日覆盖{metrics['coverage30d']}篇")
     if metrics["brokerCount30d"] >= config.multi_broker_threshold:
         reasons.append(f"{config.recent_days}日{metrics['brokerCount30d']}家券商覆盖")
+        reason_codes.append(MULTI_BROKER)
     if metrics["newBrokerCount30d"] > 0:
         reasons.append(f"新增{metrics['newBrokerCount30d']}家券商")
     if metrics["coverageAcceleration"] >= 2:
         reasons.append(f"覆盖加速+{metrics['coverageAcceleration']}")
+        reason_codes.append(COVERAGE_ACCELERATION)
     if industry_hot:
-        reasons.append("个股与行业同时升温")
+        reasons.append(f"个股与行业同时升温（行业={industry_level}）")
+        reason_codes.append(INDUSTRY_RESONANCE)
+    if metrics["buyRatio"] >= 0.6 and metrics["coverage30d"] >= 2:
+        reasons.append(f"买入类评级占比{metrics['buyRatio']:.0%}")
+        reason_codes.append(HIGH_BUY_RATIO)
 
     return {
         "entityType": "company",
         "entityName": stock_name,
         "stockCode": stock_code,
         "industryName": industry_name,
+        "industryHotspotLevel": industry_level,
         "hotspotLevel": _level_from_reasons(reasons, bool(recent), hot, strong),
         "reasons": reasons,
+        "reasonCodes": reason_codes,
         **{key: value for key, value in metrics.items() if key not in {"recent", "short", "previous"}},
     }
 
@@ -357,6 +394,7 @@ def _csv_row(signal: Dict[str, Any]) -> Dict[str, Any]:
     row["isReactivatedCoverage"] = "true" if signal.get("isReactivatedCoverage") else "false"
     row["buyRatio"] = f"{float(signal.get('buyRatio') or 0):.4f}"
     row["reasons"] = "；".join(signal.get("reasons") or [])
+    row["reasonCodes"] = "|".join(signal.get("reasonCodes") or [])
     return row
 
 
@@ -374,10 +412,13 @@ def _top(signals: Sequence[Dict[str, Any]], predicate: Any, key: Any, limit: int
 
 def _format_signal_line(signal: Dict[str, Any]) -> str:
     code = f" `{signal.get('stockCode')}`" if signal.get("stockCode") else ""
+    industry = f"，行业={signal.get('industryName')}" if signal.get("entityType") == "company" and signal.get("industryName") else ""
+    industry_level = f"/{signal.get('industryHotspotLevel')}" if signal.get("industryHotspotLevel") else ""
+    new_brokers = f"，新增券商={signal.get('newBrokerCount30d')}" if int(signal.get("newBrokerCount30d") or 0) else ""
     reasons = "；".join(signal.get("reasons") or []) or "近期有覆盖"
     return (
         f"- `{signal.get('entityName')}`{code}：{signal.get('hotspotLevel')}，"
-        f"{signal.get('coverage30d')}篇/{signal.get('brokerCount30d')}家，{reasons}"
+        f"{signal.get('coverage30d')}篇/{signal.get('brokerCount30d')}家{new_brokers}{industry}{industry_level}，{reasons}"
     )
 
 
@@ -421,7 +462,7 @@ def build_hotspot_dashboard(signals: Sequence[Dict[str, Any]], config: HotspotCo
     )
     resonance = _top(
         companies,
-        lambda signal: "个股与行业同时升温" in (signal.get("reasons") or []),
+        lambda signal: INDUSTRY_RESONANCE in (signal.get("reasonCodes") or []),
         lambda signal: (int(signal.get("coverage30d") or 0), int(signal.get("brokerCount30d") or 0)),
     )
     buy_concentration = _top(

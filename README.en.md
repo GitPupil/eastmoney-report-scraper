@@ -2,7 +2,8 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
-[![Status](https://img.shields.io/badge/Status-v0.2.0-orange)](./CHANGELOG.md)
+[![Status](https://img.shields.io/badge/Status-v0.3.0-orange)](./CHANGELOG.md)
+[![CI](https://github.com/GitPupil/eastmoney-report-scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/GitPupil/eastmoney-report-scraper/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/Tests-pytest-informational)](./tests)
 
 [简体中文](./README.md) | English
@@ -23,7 +24,8 @@ A research-oriented Eastmoney report scraper. It collects stock and industry res
 - Export transparent `scoreReasons`, `scoreBreakdown`, and `qualityScore` fields.
 - Maintain historical coverage in `COVERAGE_HISTORY.jsonl` and company/industry coverage summaries.
 - Generate `HOTSPOT_DASHBOARD.md` and `HOTSPOT_SIGNALS.csv` for first coverage, reactivated coverage, multi-broker attention, and company-industry resonance.
-- v2 modular package layout with pytest regression tests.
+- Lightweight modes: `--doctor`, `--dry-run`, `--list-only`, and `--hotspots-only`.
+- 0.3.0 exporter package split, CI workflow, and fixture-based regression tests.
 
 ## Quick Start
 
@@ -61,6 +63,15 @@ python scripts/fetch_reports.py --date 2026-05-12 --concurrency 2 --jitter 0.5
 
 # Re-fetch weak outputs
 python scripts/fetch_reports.py --date 2026-05-12 --refresh-weak
+
+# Diagnose local environment
+python scripts/fetch_reports.py --doctor
+
+# Rebuild hotspot files from existing coverage history
+python scripts/fetch_reports.py --hotspots-only --output-dir ./eastmoney_reports
+
+# Fetch only the filtered list, not detail pages
+python scripts/fetch_reports.py --date 2026-05-12 --list-only --stock 润本股份
 ```
 
 ## Outputs
@@ -95,6 +106,15 @@ For date-range jobs, the scraper also writes `RANGE_SUMMARY.md` and `RANGE_DASHB
 
 `COVERAGE_HISTORY.jsonl` stores de-duplicated historical coverage records by `infoCode`. `COMPANY_COVERAGE_SUMMARY.csv` and `INDUSTRY_COVERAGE_SUMMARY.csv` summarize historical coverage counts. `HOTSPOT_DASHBOARD.md` and `HOTSPOT_SIGNALS.csv` highlight recent first coverage, reactivated names, multi-broker coverage, industry heat, and company-industry resonance.
 
+| File | Purpose |
+|---|---|
+| `HOTSPOT_DASHBOARD.md` | Recent first coverage, reactivation, multi-broker attention, industry resonance |
+| `HOTSPOT_SIGNALS.csv` | Programmatic hotspot metrics, reasons, and reason codes |
+| `TRADING_DASHBOARD.md` | Trading priority, risk, sector and theme heat |
+| `CONSENSUS_BRIEF.md` | Multi-broker coverage and divergence for the same entity |
+| `COVERAGE_HISTORY.jsonl` | De-duplicated historical coverage detail |
+| `report_index.csv/xlsx` | Daily report index and structured fields |
+
 ## CLI Arguments
 
 | Argument | Description |
@@ -121,6 +141,10 @@ For date-range jobs, the scraper also writes `RANGE_SUMMARY.md` and `RANGE_DASHB
 | `--hotspot-broker-threshold` | Distinct broker threshold, default `3` |
 | `--hotspot-coverage-threshold` | Coverage-count threshold, default `3` |
 | `--no-hotspot` | Skip hotspot dashboard and signal CSV |
+| `--doctor` | Print JSON environment diagnostics and exit |
+| `--dry-run` | Fetch list pages and print counts, skip details |
+| `--list-only` | Fetch list pages and print selected JSON, skip details |
+| `--hotspots-only` | Rebuild hotspot outputs from coverage history without network requests |
 | `--no-pdf-fallback` | Disable PDF fallback |
 | `--no-xlsx` | Skip XLSX export |
 
@@ -132,7 +156,7 @@ eastmoney_report_scraper/
 ├── parser.py
 ├── analysis.py
 ├── scoring.py
-├── exporters.py
+├── exporters/
 ├── hotspots.py
 └── cli.py
 ```

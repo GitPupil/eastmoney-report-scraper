@@ -27,7 +27,16 @@ from eastmoney_report_scraper.exporters import (
     write_csv_index,
     write_day_summary,
 )
-from eastmoney_report_scraper.hotspots import HotspotConfig, calculate_hotspot_signals, write_hotspot_outputs
+from eastmoney_report_scraper.hotspots import (
+    FIRST_COVERAGE,
+    HIGH_BUY_RATIO,
+    INDUSTRY_RESONANCE,
+    MULTI_BROKER,
+    HotspotConfig,
+    calculate_hotspot_signals,
+    normalize_broker_name,
+    write_hotspot_outputs,
+)
 from eastmoney_report_scraper.models import DayRun, FetchResult
 from eastmoney_report_scraper.parser import extract_report_text, text_quality
 from eastmoney_report_scraper.scoring import score_report
@@ -287,7 +296,10 @@ def test_hotspot_detection_first_reactivated_multi_broker_and_industry(tmp_path:
     assert hot_company["newBrokerCount30d"] == 3
     assert hot_company["hotspotLevel"] == "STRONG"
     assert hot_company["buyRatio"] == 0.6667
-    assert "个股与行业同时升温" in hot_company["reasons"]
+    assert INDUSTRY_RESONANCE in hot_company["reasonCodes"]
+    assert FIRST_COVERAGE in hot_company["reasonCodes"]
+    assert MULTI_BROKER in hot_company["reasonCodes"]
+    assert HIGH_BUY_RATIO in hot_company["reasonCodes"]
 
     reactivated = by_name["沉寂股份"]
     assert reactivated["isReactivatedCoverage"] is True
@@ -307,9 +319,15 @@ def test_hotspot_detection_first_reactivated_multi_broker_and_industry(tmp_path:
         rows = list(csv.DictReader(handle))
     assert rows[0]["entityType"] in {"company", "industry"}
     assert "reasons" in rows[0]
+    assert "reasonCodes" in rows[0]
+    assert "coveredCompanyCount30d" in rows[0]
     dashboard = dashboard_path.read_text(encoding="utf-8")
     assert "多券商集中覆盖" in dashboard
     assert "个股-行业共振" in dashboard
+
+
+def test_broker_name_normalization():
+    assert normalize_broker_name(" 华泰　证券 ") == "华泰证券"
 
 
 def test_refresh_weak_refetches_existing(monkeypatch, tmp_path: Path):

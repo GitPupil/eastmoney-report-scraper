@@ -2,7 +2,8 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
-[![Status](https://img.shields.io/badge/Status-v0.2.0-orange)](./CHANGELOG.md)
+[![Status](https://img.shields.io/badge/Status-v0.3.0-orange)](./CHANGELOG.md)
+[![CI](https://github.com/GitPupil/eastmoney-report-scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/GitPupil/eastmoney-report-scraper/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/Tests-pytest-informational)](./tests)
 
 简体中文 | [English](./README.en.md)
@@ -36,7 +37,8 @@
 - 输出 `scoreReasons` / `scoreBreakdown`，让信号评分更透明。
 - 累计 `COVERAGE_HISTORY.jsonl`，生成公司/行业覆盖汇总。
 - 自动生成 `HOTSPOT_DASHBOARD.md` 和 `HOTSPOT_SIGNALS.csv`，识别近期首次覆盖、沉寂后再覆盖、多券商集中覆盖和行业共振。
-- v2 已拆分为模块化包结构，并补充 pytest 回归测试。
+- 支持 `--doctor`、`--dry-run`、`--list-only`、`--hotspots-only` 轻量模式。
+- 0.3.0 已拆分 exporter 包，并补充 CI 与 fixtures 回归测试。
 
 ## 快速开始
 
@@ -151,6 +153,24 @@ python scripts/fetch_reports.py --date 2026-05-12 --resume-errors-only
 python scripts/fetch_reports.py --date 2026-05-12 --hotspot-days 45 --hotspot-broker-threshold 4
 ```
 
+检查本地环境：
+
+```bash
+python scripts/fetch_reports.py --doctor
+```
+
+只基于历史记录重算热点：
+
+```bash
+python scripts/fetch_reports.py --hotspots-only --output-dir ./eastmoney_reports
+```
+
+只查看当天列表和筛选结果，不抓详情：
+
+```bash
+python scripts/fetch_reports.py --date 2026-05-12 --list-only --stock 润本股份
+```
+
 ## 输出内容
 
 ### 单日任务
@@ -204,6 +224,17 @@ eastmoney_reports/
 6. `COMPANY_COVERAGE_SUMMARY.csv` / `INDUSTRY_COVERAGE_SUMMARY.csv`：看历史覆盖次数。
 7. `ANALYSIS_INPUT.md` / `ANALYSIS_INPUT.json`：交给 AI 或程序继续分析。
 
+### 主要输出速览
+
+| 文件 | 用途 |
+|---|---|
+| `HOTSPOT_DASHBOARD.md` | 近期首次覆盖、沉寂后再覆盖、多券商覆盖、行业共振 |
+| `HOTSPOT_SIGNALS.csv` | 可程序化筛选的热点指标、原因和 reason codes |
+| `TRADING_DASHBOARD.md` | 交易优先级、风险、行业/主题热度 |
+| `CONSENSUS_BRIEF.md` | 同一标的多机构覆盖与分歧 |
+| `COVERAGE_HISTORY.jsonl` | 去重后的历史覆盖明细 |
+| `report_index.csv/xlsx` | 单日研报索引和结构化字段 |
+
 ## CLI 参数
 
 | 参数 | 说明 |
@@ -236,6 +267,10 @@ eastmoney_reports/
 | `--hotspot-broker-threshold` | 多券商覆盖阈值，默认 `3` |
 | `--hotspot-coverage-threshold` | 覆盖篇数热度阈值，默认 `3` |
 | `--no-hotspot` | 跳过热点看板和热点信号表 |
+| `--doctor` | 输出 JSON 环境诊断并退出 |
+| `--dry-run` | 只抓列表并输出计数，不抓详情 |
+| `--list-only` | 只抓列表并输出筛选后 JSON，不抓详情 |
+| `--hotspots-only` | 不请求网络，只基于历史覆盖重算热点 |
 | `--no-pdf-fallback` | 禁用 PDF fallback |
 | `--no-xlsx` | 跳过 XLSX 导出 |
 
@@ -248,13 +283,16 @@ eastmoney_reports/
 │   ├── parser.py       # HTML/PDF 抽取与文本质量评分
 │   ├── analysis.py     # 摘要、风险、财务信号、估值字段
 │   ├── scoring.py      # signal score 与 priority bucket
-│   ├── exporters.py    # Markdown、CSV、XLSX、日报和看板
+│   ├── exporters/      # Markdown、CSV、XLSX、日报、覆盖历史和看板
 │   ├── hotspots.py     # 公司/行业近期热度和覆盖变化识别
 │   └── cli.py          # CLI 参数与主流程编排
 ├── scripts/
 │   └── fetch_reports.py # 兼容入口
 ├── tests/
-│   └── test_core.py
+│   ├── fixtures/
+│   ├── test_core.py
+│   ├── test_cli_modes.py
+│   └── test_parser_fixtures.py
 ├── README.md
 ├── README.en.md
 ├── CHANGELOG.md
@@ -279,12 +317,13 @@ python scripts/fetch_reports.py --date 2026-05-12 --limit 2 --output-dir ./eastm
 
 ## 版本状态
 
-当前主线：0.2.0
+当前主线：0.3.0
 
 - 已完成模块化重构。
 - 已增加 manifest、文本质量评分和弱/错误结果续跑。
 - 已增加评分原因、评分拆解、共识简报和区间看板。
 - 已增加历史覆盖明细、公司/行业覆盖汇总和热点识别看板。
+- 已增加 CI、fixtures、轻量 CLI 模式和 exporter 包拆分。
 - 后续重点见 [ROADMAP.md](./ROADMAP.md) 与 [TODO.md](./TODO.md)。
 
 ## 限制与免责声明
