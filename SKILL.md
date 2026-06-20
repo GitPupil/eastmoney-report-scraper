@@ -1,6 +1,6 @@
 ---
 name: eastmoney_report_scraper
-description: 按日期或日期区间抓取东方财富个股/行业研报，支持筛选、续跑、PDF fallback、结构化分析、评分、交易看板、共识简报、历史覆盖和近期热点识别。
+description: 按日期或日期区间抓取东方财富个股/行业研报，支持筛选、续跑、PDF fallback、结构化分析、评分、交易看板、共识简报、历史覆盖、近期热点识别，以及观点变化/叙事趋势/时间序列/市场联动研究辅助。
 metadata:
   {
     "openclaw": {
@@ -38,6 +38,10 @@ metadata:
 - 对某天或某个日期区间生成本地研报库
 - 生成 `SUMMARY.md`、`TRADING_DASHBOARD.md`、`CONSENSUS_BRIEF.md`
 - 判断某公司或行业是否是近期热点、近期首次被覆盖、沉寂后再覆盖、多券商集中覆盖
+- 判断卖方观点是否真的变强或变弱，而不只看覆盖数量是否增加
+- 跟踪评级、目标价、EPS、风险词、正向词和主题词的变化方向
+- 基于本地输出做按日/周的覆盖热度、券商扩散和行业/个股热度趋势分析
+- 在用户提供行情数据或允许补充数据时，做研报信号与市场表现联动分析
 - 读取 `ANALYSIS_INPUT.md/json` 做后续 AI 分析
 - 对弱提取、失败项做断点续跑
 
@@ -47,6 +51,7 @@ metadata:
 - 新闻搜索
 - 交易下单
 - 非东方财富来源的研报采集
+- 在没有价格数据时，直接判断研报信号是否产生 alpha
 
 ## Default Workflow
 
@@ -67,6 +72,7 @@ metadata:
    - `COMPANY_COVERAGE_SUMMARY.csv`
    - `INDUSTRY_COVERAGE_SUMMARY.csv`
    - `ANALYSIS_INPUT.md`
+   - 需要观点趋势时，继续读取各日期目录下的 `report_index.csv` / `ANALYSIS_INPUT.json`
 8. 排查失败或续跑时优先查看：
    - `run_manifest.jsonl`
    - `run.log.jsonl`
@@ -236,6 +242,8 @@ eastmoney_reports/
 | `COVERAGE_HISTORY.jsonl` | 想查看去重后的历史覆盖明细 |
 | `COMPANY_COVERAGE_SUMMARY.csv` | 想查看公司-券商-评级组合的历史覆盖次数 |
 | `INDUSTRY_COVERAGE_SUMMARY.csv` | 想查看行业-券商-评级组合的历史覆盖次数 |
+| 各日期 `report_index.csv` | 想比较评级、目标价、EPS、score、主题标签的跨期变化 |
+| 各日期 `ANALYSIS_INPUT.json` | 想比较摘要、风险、正向信号、结构化分析字段的跨期变化 |
 
 区间任务额外输出：
 
@@ -263,6 +271,96 @@ RANGE_DASHBOARD.md
 - `coverage30d >= 3` 或 `coverageAcceleration >= 2`：默认视为近期热度抬升。
 - `hotspotLevel=STRONG`：优先汇报；通常来自“首次/再覆盖 + 多券商”或“公司与行业同时升温”。
 - `reasonCodes`：优先用于程序化判断，包含 `FIRST_COVERAGE`、`REACTIVATED_COVERAGE`、`MULTI_BROKER`、`COVERAGE_ACCELERATION`、`INDUSTRY_RESONANCE`、`HIGH_BUY_RATIO`。
+
+## Opinion Trend Workflow
+
+当用户问“观点有没有变强/变弱”“覆盖增加是不是看多加强”“同一机构观点是否连续上修”时，不要只看覆盖篇数。按这个顺序处理：
+
+1. 先定位范围：
+   - 个股问题：用 `stockCode` 优先，其次 `stockName`。
+   - 行业问题：用 `industryName`。
+   - 机构连续观点：同时锁定 `orgName` 和标的。
+2. 读取材料：
+   - 根目录 `COVERAGE_HISTORY.jsonl`：确认覆盖时间、机构、评级、是否新增机构。
+   - 各日期目录 `report_index.csv`：读取 `rating`、`ratingChange`、`targetPrice`、`epsForecast`、`signalScore`、`priorityBucket`、`themeTags`。
+   - 各日期目录 `ANALYSIS_INPUT.json`：读取 `structured_analysis.valuation_fields`、`positive_signals`、`negative_signals`、`risks`、`score_reasons`。
+   - `CONSENSUS_BRIEF.md`：快速看多机构覆盖和显式分歧。
+3. 输出判断时分成三层：
+   - 覆盖变化：覆盖篇数、券商数、新增券商数。
+   - 观点变化：评级是否上调/下调，目标价是否上修/下修，EPS 是否上修/下修，风险项是否增多。
+   - 叙事变化：正向关键词是否更集中，风险关键词是否升温，主题标签是否扩散。
+4. 结论必须避免把“覆盖增加”直接等同于“看多加强”。推荐表述：
+   - `覆盖升温且观点上修`：覆盖增加，同时评级/目标价/EPS/score 至少一项增强。
+   - `覆盖升温但观点未增强`：覆盖增加，但评级、目标价、EPS、score 没有明显改善。
+   - `覆盖升温但分歧扩大`：覆盖增加，但评级分布或风险词同步走高。
+   - `观点转弱`：评级下调、目标价/EPS 下修、风险词增多或 score 下行。
+
+当前项目已经能从 `report_index.csv` 和 `ANALYSIS_INPUT.json` 中读取单篇估值/评级字段；但根目录 `COVERAGE_HISTORY.jsonl` 目前主要记录覆盖、机构、评级和热点字段，不是完整观点因子库。若用户要求严谨的连续目标价/EPS 趋势，应明确说明需要跨日期 `report_index.csv` 或后续新增观点历史文件。
+
+## Time-Series Workflow
+
+当用户问“热度是否加速、见顶、二次发酵、衰减”“行业热度 rolling trend”“券商扩散速度”时，按时间序列而不是单日 snapshot 回答：
+
+1. 优先使用日期区间任务输出：
+   - `RANGE_DASHBOARD.md`：快速看跨日期行业、主题、标的热度。
+   - 各日期目录 `report_index.csv`：构建按天明细。
+   - 根目录 `COVERAGE_HISTORY.jsonl`：补充历史覆盖时间线。
+2. 默认聚合口径：
+   - `coverage_count_by_day`：每天覆盖篇数。
+   - `broker_count_by_day`：每天不同券商数。
+   - `new_broker_count_by_day`：相对历史首次出现的券商数。
+   - `industry_coverage_by_day`：行业每天覆盖篇数。
+   - `theme_hit_rate_by_day`：主题词出现篇数 / 当天样本篇数。
+3. 趋势判断口径：
+   - 加速：近 7 日覆盖或券商数高于前 7 日，且差值明显扩大。
+   - 见顶：覆盖高位但新增券商减少，或 risk/negative 词同步上升。
+   - 二次发酵：沉寂后重新出现，且多券商或主题词再次扩散。
+   - 衰减：覆盖篇数、券商数、主题命中率连续走低。
+4. 如果当前输出不足以生成曲线，可以用本地临时汇总读取 CSV/JSONL，不要修改项目文件；结论里说明使用的是临时聚合。
+
+## Narrative Trend Workflow
+
+当用户问“卖方叙事怎么变”“哪些关键词在扩散”“景气/拐点/涨价/出海/AI/国产替代是否升温”时，按叙事因子分析：
+
+1. 读取：
+   - `ANALYSIS_INPUT.json`：摘要、正向信号、负向信号、风险、主题标签。
+   - `THEME_BRIEF.md`：当天主题聚合。
+   - `report_index.csv`：`themeTags`、`summary`、`scoreReasons`。
+2. 默认关键词组：
+   - 景气：`景气`、`需求改善`、`订单`、`产能利用率`、`放量`
+   - 拐点：`拐点`、`修复`、`改善`、`触底`、`环比`
+   - 涨价：`涨价`、`提价`、`价格上涨`、`价差扩大`
+   - 出海：`海外`、`出海`、`出口`、`全球化`
+   - AI：`AI`、`人工智能`、`算力`、`大模型`
+   - 国产替代：`国产替代`、`自主可控`、`信创`、`本土化`
+   - 风险：`不及预期`、`竞争加剧`、`价格波动`、`政策变化`、`需求下滑`
+3. 输出时给出：
+   - 主题词命中率变化。
+   - 正向词与风险词是否同步上升。
+   - 共识关键词是否从泛化主题转向业绩/订单/价格等更硬的变量。
+   - 机构之间是否开始使用同一组叙事词。
+
+## Market Linkage Workflow
+
+当用户问“这个研报信号有没有 alpha”“首次覆盖后 3/5/10 日表现”“多券商共振后是否有超额收益”时，必须把研报信号和行情数据分开处理：
+
+1. 先确认本地是否已有行情/收益率数据。如果没有，明确说明当前 skill 输出的是研报内部信号，不包含股价和指数收益。
+2. 如果用户提供或允许读取行情数据，按这些事件对齐：
+   - 首次覆盖日：`isFirstCoverage=true` 或 `FIRST_COVERAGE`。
+   - 多券商共振日：`brokerCount30d >= 3` 或 `MULTI_BROKER`。
+   - 覆盖加速日：`COVERAGE_ACCELERATION`。
+   - 行业共振日：`INDUSTRY_RESONANCE`。
+3. 默认观察窗口：
+   - 个股：事件后 3/5/10 个交易日收益。
+   - 相对收益：个股收益减同业/指数收益。
+   - 行业：行业热度提升后 3/5/10 日板块收益。
+4. 结论要区分：
+   - `研报信号领先市场`
+   - `研报信号与市场同步`
+   - `研报信号滞后市场`
+   - `覆盖热但无超额收益`
+
+不要在没有价格数据时声称信号有效或无效；最多评价“研报内部信号强弱”和“需要市场数据验证”。
 
 ## Troubleshooting
 
