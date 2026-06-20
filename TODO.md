@@ -1,6 +1,6 @@
 # TODO
 
-## 0.3.0 Current Status
+## 0.4.0 Current Status
 
 ### Landed
 - [x] Modular package layout
@@ -15,6 +15,8 @@
 - [x] Hotspot reason codes and broker normalization hook
 - [x] CLI lightweight modes: `--doctor`, `--dry-run`, `--list-only`, `--hotspots-only`
 - [x] Exporter package split with compatible public imports
+- [x] Offline static `DASHBOARD.html`
+- [x] Dashboard CLI modes: `--dashboard-only`, `--no-dashboard`, `--dashboard-name`
 - [x] GitHub Actions CI
 - [x] Network-free parser and CLI fixtures
 - [x] Pytest regression tests and ruff checks
@@ -35,7 +37,8 @@
 - [ ] Deepen consensus and divergence summaries
 - [ ] Add richer range-level synthesis for repeated multi-day runs
 - [ ] Calibrate hotspot reason categories on real small samples
+- [ ] Add sample Dashboard screenshots for public docs
 
 ### Engineering
 - [ ] Document release tagging workflow
-- [ ] Add public examples and sample output screenshots
+- [ ] Add public examples and sample output fixtures

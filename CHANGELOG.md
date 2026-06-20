@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-06-20
+
+### Added
+- offline static `DASHBOARD.html` with hotspots, report trends, broker diffusion, filters, opinion changes, and data quality views
+- `--dashboard-only` CLI mode to rebuild the visual dashboard from existing outputs without network requests
+- `--no-dashboard` and `--dashboard-name` CLI options
+- dashboard regression tests covering generated data, empty output roots, and CLI short-circuit behavior
+
+### Changed
+- normal fetch runs and `--hotspots-only` now refresh the static dashboard by default
+- updated README and SKILL guidance for dashboard-first research workflows
+
 ## [0.3.0] - 2026-05-21
 
 ### Added

@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
-[![Status](https://img.shields.io/badge/Status-v0.3.0-orange)](./CHANGELOG.md)
+[![Status](https://img.shields.io/badge/Status-v0.4.0-orange)](./CHANGELOG.md)
 [![CI](https://github.com/GitPupil/eastmoney-report-scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/GitPupil/eastmoney-report-scraper/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/Tests-pytest-informational)](./tests)
 
@@ -37,8 +37,9 @@
 - 输出 `scoreReasons` / `scoreBreakdown`，让信号评分更透明。
 - 累计 `COVERAGE_HISTORY.jsonl`，生成公司/行业覆盖汇总。
 - 自动生成 `HOTSPOT_DASHBOARD.md` 和 `HOTSPOT_SIGNALS.csv`，识别近期首次覆盖、沉寂后再覆盖、多券商集中覆盖和行业共振。
-- 支持 `--doctor`、`--dry-run`、`--list-only`、`--hotspots-only` 轻量模式。
-- 0.3.0 已拆分 exporter 包，并补充 CI 与 fixtures 回归测试。
+- 自动生成离线静态 `DASHBOARD.html`，集中查看近期热点、趋势、研报数量、筛选结果、观点变化和数据质量。
+- 支持 `--doctor`、`--dry-run`、`--list-only`、`--hotspots-only`、`--dashboard-only` 轻量模式。
+- 0.4.0 新增可视化 Dashboard；0.3.0 已拆分 exporter 包，并补充 CI 与 fixtures 回归测试。
 
 ## 快速开始
 
@@ -62,6 +63,7 @@ eastmoney_reports/
 ├── COVERAGE_HISTORY.jsonl
 ├── COMPANY_COVERAGE_SUMMARY.csv
 ├── INDUSTRY_COVERAGE_SUMMARY.csv
+├── DASHBOARD.html
 ├── HOTSPOT_DASHBOARD.md
 └── HOTSPOT_SIGNALS.csv
 ```
@@ -165,6 +167,12 @@ python scripts/fetch_reports.py --doctor
 python scripts/fetch_reports.py --hotspots-only --output-dir ./eastmoney_reports
 ```
 
+只基于已有输出重建可视化 Dashboard：
+
+```bash
+python scripts/fetch_reports.py --dashboard-only --output-dir ./eastmoney_reports
+```
+
 只查看当天列表和筛选结果，不抓详情：
 
 ```bash
@@ -180,6 +188,7 @@ eastmoney_reports/
 ├── COVERAGE_HISTORY.jsonl
 ├── COMPANY_COVERAGE_SUMMARY.csv
 ├── INDUSTRY_COVERAGE_SUMMARY.csv
+├── DASHBOARD.html
 ├── HOTSPOT_DASHBOARD.md
 ├── HOTSPOT_SIGNALS.csv
 └── 研报_2026-05-12/
@@ -216,18 +225,20 @@ eastmoney_reports/
 
 ### 推荐阅读顺序
 
-1. `HOTSPOT_DASHBOARD.md`：先看近期首次覆盖、沉寂后再覆盖、多券商集中覆盖和行业共振。
-2. `TRADING_DASHBOARD.md`：看交易优先级、风险和热度。
-3. `SUMMARY.md`：快速扫当天所有样本。
-4. `TOP_SIGNALS.md`：看正向/风险/估值评级信号。
-5. `CONSENSUS_BRIEF.md`：看同一标的的多机构覆盖和分歧。
-6. `COMPANY_COVERAGE_SUMMARY.csv` / `INDUSTRY_COVERAGE_SUMMARY.csv`：看历史覆盖次数。
-7. `ANALYSIS_INPUT.md` / `ANALYSIS_INPUT.json`：交给 AI 或程序继续分析。
+1. `DASHBOARD.html`：先用浏览器看近期热点、趋势、筛选、观点变化和数据质量。
+2. `HOTSPOT_DASHBOARD.md`：看近期首次覆盖、沉寂后再覆盖、多券商集中覆盖和行业共振。
+3. `TRADING_DASHBOARD.md`：看交易优先级、风险和热度。
+4. `SUMMARY.md`：快速扫当天所有样本。
+5. `TOP_SIGNALS.md`：看正向/风险/估值评级信号。
+6. `CONSENSUS_BRIEF.md`：看同一标的的多机构覆盖和分歧。
+7. `COMPANY_COVERAGE_SUMMARY.csv` / `INDUSTRY_COVERAGE_SUMMARY.csv`：看历史覆盖次数。
+8. `ANALYSIS_INPUT.md` / `ANALYSIS_INPUT.json`：交给 AI 或程序继续分析。
 
 ### 主要输出速览
 
 | 文件 | 用途 |
 |---|---|
+| `DASHBOARD.html` | 离线可视化看板，集中查看热点、趋势、筛选、观点变化和质量 |
 | `HOTSPOT_DASHBOARD.md` | 近期首次覆盖、沉寂后再覆盖、多券商覆盖、行业共振 |
 | `HOTSPOT_SIGNALS.csv` | 可程序化筛选的热点指标、原因和 reason codes |
 | `TRADING_DASHBOARD.md` | 交易优先级、风险、行业/主题热度 |
@@ -271,6 +282,9 @@ eastmoney_reports/
 | `--dry-run` | 只抓列表并输出计数，不抓详情 |
 | `--list-only` | 只抓列表并输出筛选后 JSON，不抓详情 |
 | `--hotspots-only` | 不请求网络，只基于历史覆盖重算热点 |
+| `--dashboard-only` | 不请求网络，只基于已有输出重建 `DASHBOARD.html` |
+| `--no-dashboard` | 跳过静态 HTML Dashboard 生成 |
+| `--dashboard-name` | 自定义 Dashboard 文件名，默认 `DASHBOARD.html` |
 | `--no-pdf-fallback` | 禁用 PDF fallback |
 | `--no-xlsx` | 跳过 XLSX 导出 |
 
@@ -285,6 +299,7 @@ eastmoney_reports/
 │   ├── scoring.py      # signal score 与 priority bucket
 │   ├── exporters/      # Markdown、CSV、XLSX、日报、覆盖历史和看板
 │   ├── hotspots.py     # 公司/行业近期热度和覆盖变化识别
+│   ├── dashboard.py    # 离线静态 HTML Dashboard
 │   └── cli.py          # CLI 参数与主流程编排
 ├── scripts/
 │   └── fetch_reports.py # 兼容入口
@@ -317,13 +332,14 @@ python scripts/fetch_reports.py --date 2026-05-12 --limit 2 --output-dir ./eastm
 
 ## 版本状态
 
-当前主线：0.3.0
+当前主线：0.4.0
 
 - 已完成模块化重构。
 - 已增加 manifest、文本质量评分和弱/错误结果续跑。
 - 已增加评分原因、评分拆解、共识简报和区间看板。
 - 已增加历史覆盖明细、公司/行业覆盖汇总和热点识别看板。
 - 已增加 CI、fixtures、轻量 CLI 模式和 exporter 包拆分。
+- 已增加离线静态 `DASHBOARD.html`，支持热点、趋势、筛选、观点变化和质量查看。
 - 后续重点见 [ROADMAP.md](./ROADMAP.md) 与 [TODO.md](./TODO.md)。
 
 ## 限制与免责声明

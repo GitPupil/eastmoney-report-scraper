@@ -17,7 +17,14 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .analysis import build_structured_analysis, extract_summary
 from .client import fetch_report_list, http_get_with_retry
-from .constants import DEFAULT_COVERAGE_HISTORY_NAME, DEFAULT_MANIFEST_NAME, DEFAULT_OUTPUT_ROOT, DETAIL_URL_TEMPLATE
+from .constants import (
+    DEFAULT_COVERAGE_HISTORY_NAME,
+    DEFAULT_DASHBOARD_NAME,
+    DEFAULT_MANIFEST_NAME,
+    DEFAULT_OUTPUT_ROOT,
+    DETAIL_URL_TEMPLATE,
+)
+from .dashboard import write_dashboard
 from .exporters import build_markdown, read_coverage_history, update_coverage_history, write_day_summary, write_range_summary
 from .hotspots import HotspotConfig, write_hotspot_outputs
 from .models import DayRun, FetchResult
@@ -378,6 +385,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true", help="Fetch list pages and show selected counts without fetching report details")
     parser.add_argument("--list-only", action="store_true", help="Fetch list pages, print selected list JSON, and skip report details")
     parser.add_argument("--hotspots-only", action="store_true", help="Rebuild hotspot files from existing coverage history without network requests")
+    parser.add_argument("--dashboard-only", action="store_true", help="Rebuild the static HTML dashboard from existing outputs without network requests")
+    parser.add_argument("--no-dashboard", action="store_true", help="Skip static HTML dashboard generation")
+    parser.add_argument("--dashboard-name", default=DEFAULT_DASHBOARD_NAME, help="Static HTML dashboard file name")
     return parser.parse_args()
 
 
@@ -441,6 +451,9 @@ def run_hotspots_only(output_root: Path, args: argparse.Namespace) -> None:
     coverage_history_path = output_root / DEFAULT_COVERAGE_HISTORY_NAME
     coverage_entries = read_coverage_history(coverage_history_path)
     hotspot_signals_path, hotspot_dashboard_path = write_hotspot_outputs(output_root, coverage_entries, build_hotspot_config(args))
+    dashboard_path = None
+    if not getattr(args, "no_dashboard", False):
+        dashboard_path = write_dashboard(output_root, getattr(args, "dashboard_name", DEFAULT_DASHBOARD_NAME))
     print(
         json.dumps(
             {
@@ -449,6 +462,21 @@ def run_hotspots_only(output_root: Path, args: argparse.Namespace) -> None:
                 "coverage_entries": len(coverage_entries),
                 "hotspot_signals": str(hotspot_signals_path),
                 "hotspot_dashboard": str(hotspot_dashboard_path),
+                "dashboard": str(dashboard_path) if dashboard_path else None,
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
+def run_dashboard_only(output_root: Path, dashboard_name: str = DEFAULT_DASHBOARD_NAME) -> None:
+    dashboard_path = write_dashboard(output_root, dashboard_name)
+    print(
+        json.dumps(
+            {
+                "mode": "dashboard-only",
+                "output_dir": str(output_root),
+                "dashboard": str(dashboard_path),
             },
             ensure_ascii=False,
         )
@@ -530,6 +558,9 @@ def main() -> None:
     if args.doctor:
         run_doctor(output_root)
         return
+    if args.dashboard_only:
+        run_dashboard_only(output_root, args.dashboard_name)
+        return
     if args.hotspots_only:
         run_hotspots_only(output_root, args)
         return
@@ -552,6 +583,9 @@ def main() -> None:
     if not args.no_hotspot:
         coverage_entries = read_coverage_history(coverage_history_path)
         hotspot_signals_path, hotspot_dashboard_path = write_hotspot_outputs(output_root, coverage_entries, build_hotspot_config(args))
+    dashboard_path = None
+    if not args.no_dashboard:
+        dashboard_path = write_dashboard(output_root, args.dashboard_name)
 
     print(
         json.dumps(
@@ -571,6 +605,7 @@ def main() -> None:
                 "industry_coverage_summary": str(industry_coverage_summary_path),
                 "hotspot_signals": str(hotspot_signals_path) if hotspot_signals_path else None,
                 "hotspot_dashboard": str(hotspot_dashboard_path) if hotspot_dashboard_path else None,
+                "dashboard": str(dashboard_path) if dashboard_path else None,
             },
             ensure_ascii=False,
         )

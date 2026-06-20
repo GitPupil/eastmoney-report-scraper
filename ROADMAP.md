@@ -1,6 +1,6 @@
 # Roadmap
 
-## 0.3.0 Landed
+## 0.4.0 Landed
 
 - Modular package layout under `eastmoney_report_scraper/`
 - Compatibility script entrypoint in `scripts/fetch_reports.py`
@@ -18,6 +18,8 @@
   - `HOTSPOT_SIGNALS.csv`
 - Hotspot reason codes and broker normalization hook
 - CLI lightweight modes: `--doctor`, `--dry-run`, `--list-only`, `--hotspots-only`
+- Offline static `DASHBOARD.html`
+- Dashboard CLI modes: `--dashboard-only`, `--no-dashboard`, `--dashboard-name`
 - GitHub Actions CI
 - Pytest fixtures and ruff development checks
 
@@ -25,18 +27,18 @@
 
 ## Next Milestones
 
-### 0.4.0: Extraction Reliability
+### 0.5.0: Extraction Reliability
 - Improve PDF text cleanup
 - Reduce noisy summary bullets
 - Add stronger handling for malformed pages
 
-### 0.5.0: Research Depth
+### 0.6.0: Research Depth
 - Improve headline and core-driver quality
 - Deepen consensus and divergence summaries
 - Add richer range-level synthesis
 - Calibrate hotspot reason categories on real small samples
 
-### 0.6.0: Developer Experience
+### 0.7.0: Developer Experience
 - Document release tagging and publishing workflow
 - Expand public examples and sample output screenshots
 - Add richer contribution examples

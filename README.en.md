@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
-[![Status](https://img.shields.io/badge/Status-v0.3.0-orange)](./CHANGELOG.md)
+[![Status](https://img.shields.io/badge/Status-v0.4.0-orange)](./CHANGELOG.md)
 [![CI](https://github.com/GitPupil/eastmoney-report-scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/GitPupil/eastmoney-report-scraper/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/Tests-pytest-informational)](./tests)
 
@@ -24,8 +24,9 @@ A research-oriented Eastmoney report scraper. It collects stock and industry res
 - Export transparent `scoreReasons`, `scoreBreakdown`, and `qualityScore` fields.
 - Maintain historical coverage in `COVERAGE_HISTORY.jsonl` and company/industry coverage summaries.
 - Generate `HOTSPOT_DASHBOARD.md` and `HOTSPOT_SIGNALS.csv` for first coverage, reactivated coverage, multi-broker attention, and company-industry resonance.
-- Lightweight modes: `--doctor`, `--dry-run`, `--list-only`, and `--hotspots-only`.
-- 0.3.0 exporter package split, CI workflow, and fixture-based regression tests.
+- Generate offline static `DASHBOARD.html` for recent hotspots, trends, report counts, filters, opinion changes, and data quality.
+- Lightweight modes: `--doctor`, `--dry-run`, `--list-only`, `--hotspots-only`, and `--dashboard-only`.
+- 0.4.0 adds the visual dashboard; 0.3.0 split exporters and added CI plus fixture-based regression tests.
 
 ## Quick Start
 
@@ -70,6 +71,9 @@ python scripts/fetch_reports.py --doctor
 # Rebuild hotspot files from existing coverage history
 python scripts/fetch_reports.py --hotspots-only --output-dir ./eastmoney_reports
 
+# Rebuild the visual dashboard from existing outputs
+python scripts/fetch_reports.py --dashboard-only --output-dir ./eastmoney_reports
+
 # Fetch only the filtered list, not detail pages
 python scripts/fetch_reports.py --date 2026-05-12 --list-only --stock 润本股份
 ```
@@ -81,6 +85,7 @@ eastmoney_reports/
 ├── COVERAGE_HISTORY.jsonl
 ├── COMPANY_COVERAGE_SUMMARY.csv
 ├── INDUSTRY_COVERAGE_SUMMARY.csv
+├── DASHBOARD.html
 ├── HOTSPOT_DASHBOARD.md
 ├── HOTSPOT_SIGNALS.csv
 └── 研报_2026-05-12/
@@ -104,10 +109,11 @@ eastmoney_reports/
 
 For date-range jobs, the scraper also writes `RANGE_SUMMARY.md` and `RANGE_DASHBOARD.md`.
 
-`COVERAGE_HISTORY.jsonl` stores de-duplicated historical coverage records by `infoCode`. `COMPANY_COVERAGE_SUMMARY.csv` and `INDUSTRY_COVERAGE_SUMMARY.csv` summarize historical coverage counts. `HOTSPOT_DASHBOARD.md` and `HOTSPOT_SIGNALS.csv` highlight recent first coverage, reactivated names, multi-broker coverage, industry heat, and company-industry resonance.
+`DASHBOARD.html` is a single offline HTML dashboard that reads generated CSV/JSONL outputs. `COVERAGE_HISTORY.jsonl` stores de-duplicated historical coverage records by `infoCode`. `COMPANY_COVERAGE_SUMMARY.csv` and `INDUSTRY_COVERAGE_SUMMARY.csv` summarize historical coverage counts. `HOTSPOT_DASHBOARD.md` and `HOTSPOT_SIGNALS.csv` highlight recent first coverage, reactivated names, multi-broker coverage, industry heat, and company-industry resonance.
 
 | File | Purpose |
 |---|---|
+| `DASHBOARD.html` | Offline visual dashboard for hotspots, trends, filters, opinion changes, and quality |
 | `HOTSPOT_DASHBOARD.md` | Recent first coverage, reactivation, multi-broker attention, industry resonance |
 | `HOTSPOT_SIGNALS.csv` | Programmatic hotspot metrics, reasons, and reason codes |
 | `TRADING_DASHBOARD.md` | Trading priority, risk, sector and theme heat |
@@ -145,6 +151,9 @@ For date-range jobs, the scraper also writes `RANGE_SUMMARY.md` and `RANGE_DASHB
 | `--dry-run` | Fetch list pages and print counts, skip details |
 | `--list-only` | Fetch list pages and print selected JSON, skip details |
 | `--hotspots-only` | Rebuild hotspot outputs from coverage history without network requests |
+| `--dashboard-only` | Rebuild `DASHBOARD.html` from existing outputs without network requests |
+| `--no-dashboard` | Skip static HTML dashboard generation |
+| `--dashboard-name` | Customize dashboard file name, default `DASHBOARD.html` |
 | `--no-pdf-fallback` | Disable PDF fallback |
 | `--no-xlsx` | Skip XLSX export |
 
@@ -158,6 +167,7 @@ eastmoney_report_scraper/
 ├── scoring.py
 ├── exporters/
 ├── hotspots.py
+├── dashboard.py
 └── cli.py
 ```
 

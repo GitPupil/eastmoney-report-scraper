@@ -1,6 +1,6 @@
 ---
 name: eastmoney_report_scraper
-description: 按日期或日期区间抓取东方财富个股/行业研报，支持筛选、续跑、PDF fallback、结构化分析、评分、交易看板、共识简报、历史覆盖、近期热点识别，以及观点变化/叙事趋势/时间序列/市场联动研究辅助。
+description: 按日期或日期区间抓取东方财富个股/行业研报，支持筛选、续跑、PDF fallback、结构化分析、评分、交易看板、共识简报、历史覆盖、近期热点识别、离线可视化 Dashboard，以及观点变化/叙事趋势/时间序列/市场联动研究辅助。
 metadata:
   {
     "openclaw": {
@@ -37,6 +37,7 @@ metadata:
 - 按股票、机构、评级、行业筛选研报
 - 对某天或某个日期区间生成本地研报库
 - 生成 `SUMMARY.md`、`TRADING_DASHBOARD.md`、`CONSENSUS_BRIEF.md`
+- 生成或重建离线静态 `DASHBOARD.html`
 - 判断某公司或行业是否是近期热点、近期首次被覆盖、沉寂后再覆盖、多券商集中覆盖
 - 判断卖方观点是否真的变强或变弱，而不只看覆盖数量是否增加
 - 跟踪评级、目标价、EPS、风险词、正向词和主题词的变化方向
@@ -63,7 +64,9 @@ metadata:
 4. 默认使用兼容入口：`python3 {baseDir}/scripts/fetch_reports.py ...`。
 5. 正式批量抓取时并发保持保守：`--concurrency 2 --jitter 0.5`。
 6. 只需要重算热点时，用 `--hotspots-only`，不要重新抓取网络。
-7. 抓取完成后优先读取：
+7. 只需要更新可视化看板时，用 `--dashboard-only`，不要重新抓取网络。
+8. 抓取完成后优先读取：
+   - `DASHBOARD.html`
    - `HOTSPOT_DASHBOARD.md`
    - `TRADING_DASHBOARD.md`
    - `SUMMARY.md`
@@ -73,7 +76,7 @@ metadata:
    - `INDUSTRY_COVERAGE_SUMMARY.csv`
    - `ANALYSIS_INPUT.md`
    - 需要观点趋势时，继续读取各日期目录下的 `report_index.csv` / `ANALYSIS_INPUT.json`
-8. 排查失败或续跑时优先查看：
+9. 排查失败或续跑时优先查看：
    - `run_manifest.jsonl`
    - `run.log.jsonl`
 
@@ -157,6 +160,12 @@ python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --hotspot-days 45 -
 python3 {baseDir}/scripts/fetch_reports.py --hotspots-only --output-dir ./eastmoney_reports
 ```
 
+### 只重建可视化 Dashboard
+
+```bash
+python3 {baseDir}/scripts/fetch_reports.py --dashboard-only --output-dir ./eastmoney_reports
+```
+
 ## Parameters
 
 | 参数 | 用途 |
@@ -189,6 +198,9 @@ python3 {baseDir}/scripts/fetch_reports.py --hotspots-only --output-dir ./eastmo
 | `--dry-run` | 只抓列表并输出计数，不抓详情 |
 | `--list-only` | 只抓列表并输出筛选后 JSON，不抓详情 |
 | `--hotspots-only` | 不请求网络，只基于历史覆盖重算热点 |
+| `--dashboard-only` | 不请求网络，只基于已有输出重建 `DASHBOARD.html` |
+| `--no-dashboard` | 跳过静态 HTML Dashboard 生成 |
+| `--dashboard-name` | 自定义 Dashboard 文件名，默认 `DASHBOARD.html` |
 | `--no-pdf-fallback` | 禁用 PDF fallback |
 | `--no-xlsx` | 跳过 xlsx 导出 |
 
@@ -201,6 +213,7 @@ eastmoney_reports/
 ├── COVERAGE_HISTORY.jsonl
 ├── COMPANY_COVERAGE_SUMMARY.csv
 ├── INDUSTRY_COVERAGE_SUMMARY.csv
+├── DASHBOARD.html
 ├── HOTSPOT_DASHBOARD.md
 ├── HOTSPOT_SIGNALS.csv
 └── 研报_2026-05-12/
@@ -226,6 +239,7 @@ eastmoney_reports/
 
 | 文件 | 何时读取 |
 |---|---|
+| `DASHBOARD.html` | 想用浏览器集中查看近期热点、趋势、筛选、观点变化和数据质量 |
 | `HOTSPOT_DASHBOARD.md` | 想先判断近期首次覆盖、沉寂后再覆盖、多券商集中覆盖和行业共振 |
 | `HOTSPOT_SIGNALS.csv` | 想按字段筛选热点等级、覆盖加速、券商数、买入评级集中度 |
 | `TRADING_DASHBOARD.md` | 想先看高优先级标的、风险、主题热度 |
@@ -258,10 +272,11 @@ RANGE_DASHBOARD.md
 
 当用户问“这个公司/行业是不是近期热点”“是不是第一次被调研”“有没有多家券商一起覆盖”“最近是否重新被关注”时，按这个顺序读文件：
 
-1. `HOTSPOT_DASHBOARD.md`：先给整体结论和分组排名。
-2. `HOTSPOT_SIGNALS.csv`：定位具体公司或行业，读取 `hotspotLevel`、`coverage7d`、`coverage30d`、`coverageAcceleration`、`brokerCount30d`、`newBrokerCount30d`、`reasonCodes`、`reasons`。
-3. `COVERAGE_HISTORY.jsonl`：需要解释“首次覆盖”或“沉寂后再覆盖”时，回看历史明细。
-4. `COMPANY_COVERAGE_SUMMARY.csv` / `INDUSTRY_COVERAGE_SUMMARY.csv`：需要回答历史覆盖次数、券商分布、评级分布时读取。
+1. `DASHBOARD.html`：先看可视化热点、趋势、筛选和明细。
+2. `HOTSPOT_DASHBOARD.md`：给整体结论和分组排名。
+3. `HOTSPOT_SIGNALS.csv`：定位具体公司或行业，读取 `hotspotLevel`、`coverage7d`、`coverage30d`、`coverageAcceleration`、`brokerCount30d`、`newBrokerCount30d`、`reasonCodes`、`reasons`。
+4. `COVERAGE_HISTORY.jsonl`：需要解释“首次覆盖”或“沉寂后再覆盖”时，回看历史明细。
+5. `COMPANY_COVERAGE_SUMMARY.csv` / `INDUSTRY_COVERAGE_SUMMARY.csv`：需要回答历史覆盖次数、券商分布、评级分布时读取。
 
 判断口径：
 

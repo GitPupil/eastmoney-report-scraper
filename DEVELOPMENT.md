@@ -31,6 +31,7 @@ pip install -r requirements-dev.txt
 python3 scripts/fetch_reports.py --help
 python3 scripts/fetch_reports.py --date 2026-05-12
 python3 scripts/fetch_reports.py --date 2026-05-12 --concurrency 2
+python3 scripts/fetch_reports.py --dashboard-only --output-dir ./eastmoney_reports
 ```
 
 ## Smoke Validation
@@ -54,6 +55,7 @@ Check that at least these outputs exist:
 - `report_index.csv`
 - `run_manifest.jsonl`
 - `CONSENSUS_BRIEF.md`
+- root-level `DASHBOARD.html`
 
 Optional real-network smoke test:
 
@@ -72,6 +74,7 @@ The implementation keeps `scripts/fetch_reports.py` as a compatibility entrypoin
 - `eastmoney_report_scraper/scoring.py`
 - `eastmoney_report_scraper/exporters/`
 - `eastmoney_report_scraper/hotspots.py`
+- `eastmoney_report_scraper/dashboard.py`
 - `eastmoney_report_scraper/cli.py`
 
 ## Fixtures
