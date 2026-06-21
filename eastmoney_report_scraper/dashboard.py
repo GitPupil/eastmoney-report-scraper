@@ -354,9 +354,199 @@ def build_opinion_trends(reports: Sequence[Dict[str, Any]]) -> List[Dict[str, An
     return sorted(trends, key=lambda row: (row.get("latestDate") or "", row.get("count") or 0), reverse=True)[:120]
 
 
+def _dominant(rows: Sequence[Dict[str, Any]], field: str) -> str:
+    counter = Counter(str(row.get(field) or "").strip() for row in rows if str(row.get(field) or "").strip())
+    return counter.most_common(1)[0][0] if counter else ""
+
+
+def _average_by_day(rows: Sequence[Dict[str, Any]], field: str) -> List[Dict[str, Any]]:
+    grouped: Dict[str, List[float]] = defaultdict(list)
+    for row in rows:
+        date_value = str(row.get("date") or "")
+        if date_value:
+            grouped[date_value].append(_to_float(row.get(field)))
+    return [
+        {"name": date_value[5:], "date": date_value, "count": round(sum(values) / max(1, len(values)), 2)}
+        for date_value, values in sorted(grouped.items())
+        if values
+    ]
+
+
+def _entity_timeline(rows: Sequence[Dict[str, Any]], field: str) -> List[Dict[str, Any]]:
+    timeline = []
+    for row in sorted(rows, key=lambda item: (item.get("date") or "", item.get("infoCode") or "")):
+        value = row.get(field)
+        number = _first_number(value)
+        if number is None:
+            continue
+        timeline.append(
+            {
+                "date": row.get("date") or "",
+                "name": (row.get("date") or "")[5:],
+                "count": number,
+                "value": value,
+                "orgName": row.get("orgName") or "",
+                "title": row.get("title") or "",
+            }
+        )
+    return timeline[-40:]
+
+
+def _compact_report(row: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "date": row.get("date") or "",
+        "stockName": row.get("stockName") or "",
+        "stockCode": row.get("stockCode") or "",
+        "industryName": row.get("industryName") or "",
+        "title": row.get("title") or "",
+        "orgName": row.get("orgName") or "",
+        "rating": row.get("rating") or "",
+        "summary": row.get("summary") or "",
+        "signalScore": row.get("signalScore") or 0,
+        "priorityBucket": row.get("priorityBucket") or "",
+        "themeTags": row.get("themeTags") or [],
+        "targetPrice": row.get("targetPrice") or "",
+        "epsForecast": row.get("epsForecast") or "",
+        "file": row.get("file") or "",
+        "fileHref": row.get("fileHref") or "",
+    }
+
+
+def _matching_hotspots(
+    entity_type: str,
+    label: str,
+    stock_code: str,
+    industry_name: str,
+    hotspots: Sequence[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    matches = []
+    for hotspot in hotspots:
+        if entity_type == "company":
+            if hotspot.get("entityType") == "company" and (
+                (stock_code and hotspot.get("stockCode") == stock_code) or hotspot.get("entityName") == label
+            ):
+                matches.append(hotspot)
+        elif hotspot.get("entityType") == "industry":
+            if hotspot.get("entityName") == label or hotspot.get("industryName") == industry_name:
+                matches.append(hotspot)
+    return matches
+
+
+def _matching_opinion_trends(
+    entity_type: str,
+    label: str,
+    stock_code: str,
+    industry_name: str,
+    opinions: Sequence[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    if entity_type == "company":
+        return [
+            row
+            for row in opinions
+            if (stock_code and row.get("stockCode") == stock_code) or row.get("stockName") == label
+        ]
+    return [row for row in opinions if row.get("industryName") == industry_name or row.get("stockName") == label]
+
+
+def _direction_counts(opinions: Sequence[Dict[str, Any]], field: str) -> Dict[str, int]:
+    counter = Counter(str(row.get(field) or "unknown") for row in opinions)
+    return {
+        "up": counter.get("up", 0),
+        "down": counter.get("down", 0),
+        "flat": counter.get("flat", 0),
+        "unknown": counter.get("unknown", 0),
+    }
+
+
+def _entity_drilldown(
+    entity_type: str,
+    key: str,
+    rows: Sequence[Dict[str, Any]],
+    hotspots: Sequence[Dict[str, Any]],
+    opinions: Sequence[Dict[str, Any]],
+) -> Dict[str, Any]:
+    ordered = sorted(rows, key=lambda row: (row.get("date") or "", row.get("infoCode") or ""))
+    label = _dominant(ordered, "stockName") or _dominant(ordered, "industryName") or key
+    stock_code = _dominant(ordered, "stockCode")
+    industry_name = _dominant(ordered, "industryName")
+    entity_hotspots = _matching_hotspots(entity_type, label, stock_code, industry_name, hotspots)
+    entity_opinions = _matching_opinion_trends(entity_type, label, stock_code, industry_name, opinions)
+    dates = [row.get("date") for row in ordered if row.get("date")]
+    broker_count = len({row.get("orgName") for row in ordered if row.get("orgName")})
+    score_values = [_to_float(row.get("signalScore")) for row in ordered if row.get("signalScore") not in {"", None}]
+    latest_reports = sorted(ordered, key=lambda row: (row.get("date") or "", row.get("signalScore") or 0), reverse=True)[:10]
+    coverage_by_day = [{"name": row["date"][5:], "date": row["date"], "count": row["count"]} for row in _daily_count_rows(ordered)]
+    return {
+        "entityKey": f"{entity_type}::{key}",
+        "entityType": entity_type,
+        "label": label,
+        "stockCode": stock_code,
+        "industryName": industry_name,
+        "reportCount": len(ordered),
+        "brokerCount": broker_count,
+        "firstDate": min(dates) if dates else "",
+        "latestDate": max(dates) if dates else "",
+        "avgScore": round(sum(score_values) / max(1, len(score_values)), 1) if score_values else 0,
+        "hotspotLevel": (entity_hotspots[0].get("hotspotLevel") if entity_hotspots else ""),
+        "reasonCodes": sorted({code for hotspot in entity_hotspots for code in hotspot.get("reasonCodes", [])}),
+        "coverageByDay": coverage_by_day,
+        "brokerByDay": _daily_distinct_rows(ordered, "orgName"),
+        "scoreByDay": _average_by_day(ordered, "signalScore"),
+        "targetTimeline": _entity_timeline(ordered, "targetPrice"),
+        "epsTimeline": _entity_timeline(ordered, "epsForecast"),
+        "topBrokers": _counter_rows(Counter(row.get("orgName") or "" for row in ordered), limit=10),
+        "topThemes": _counter_rows(Counter(tag for row in ordered for tag in row.get("themeTags", [])), limit=10),
+        "ratingDistribution": _counter_rows(Counter(row.get("rating") or "" for row in ordered), limit=10),
+        "opinionSummary": {
+            "trendCount": len(entity_opinions),
+            "target": _direction_counts(entity_opinions, "targetDirection"),
+            "eps": _direction_counts(entity_opinions, "epsDirection"),
+            "score": _direction_counts(entity_opinions, "scoreDirection"),
+        },
+        "opinionTrends": entity_opinions[:20],
+        "hotspots": entity_hotspots[:10],
+        "latestReports": [_compact_report(row) for row in latest_reports],
+    }
+
+
+def build_entity_drilldowns(
+    reports: Sequence[Dict[str, Any]],
+    hotspots: Sequence[Dict[str, Any]],
+    opinions: Sequence[Dict[str, Any]],
+    limit: int = 300,
+) -> List[Dict[str, Any]]:
+    entities: List[Dict[str, Any]] = []
+    company_groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    industry_groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for row in reports:
+        company_key = str(row.get("stockCode") or row.get("stockName") or "").strip()
+        industry_key = str(row.get("industryName") or "").strip()
+        if company_key:
+            company_groups[company_key].append(row)
+        if industry_key:
+            industry_groups[industry_key].append(row)
+
+    for key, rows in company_groups.items():
+        entities.append(_entity_drilldown("company", key, rows, hotspots, opinions))
+    for key, rows in industry_groups.items():
+        entities.append(_entity_drilldown("industry", key, rows, hotspots, opinions))
+
+    return sorted(
+        entities,
+        key=lambda row: (
+            {"STRONG": 0, "HOT": 1, "WATCH": 2, "": 3}.get(str(row.get("hotspotLevel") or ""), 4),
+            -_to_int(row.get("reportCount")),
+            -_to_int(row.get("brokerCount")),
+            row.get("entityType") or "",
+            row.get("label") or "",
+        ),
+    )[:limit]
+
+
 def build_dashboard_data(output_root: Path) -> Dict[str, Any]:
     reports = load_report_rows(output_root)
     hotspots = load_hotspot_rows(output_root)
+    opinion_trends = build_opinion_trends(reports)
     coverage_history = _read_jsonl_rows(output_root / DEFAULT_COVERAGE_HISTORY_NAME)
     company_summary = _read_csv_rows(output_root / DEFAULT_COVERAGE_SUMMARY_NAME)
     industry_summary = _read_csv_rows(output_root / DEFAULT_INDUSTRY_COVERAGE_SUMMARY_NAME)
@@ -385,7 +575,8 @@ def build_dashboard_data(output_root: Path) -> Dict[str, Any]:
         "coverageHistoryCount": len(coverage_history),
         "companyCoverageSummary": company_summary[:500],
         "industryCoverageSummary": industry_summary[:500],
-        "opinionTrends": build_opinion_trends(reports),
+        "opinionTrends": opinion_trends,
+        "entityDrilldowns": build_entity_drilldowns(reports, hotspots, opinion_trends),
         "aggregates": {
             "reportsByDay": _daily_count_rows(reports),
             "brokersByDay": _daily_distinct_rows(reports, "orgName"),
@@ -468,6 +659,7 @@ _HTML_TEMPLATE = """<!doctype html>
     .eyebrow { margin: 0 0 4px; color: var(--teal); font-size: 12px; font-weight: 700; text-transform: uppercase; }
     h1 { margin: 0; font-size: 30px; line-height: 1.1; letter-spacing: 0; }
     h2 { margin: 0 0 14px; font-size: 18px; letter-spacing: 0; }
+    h3 { margin: 0 0 10px; font-size: 14px; letter-spacing: 0; }
     .meta { color: var(--muted); text-align: right; font-size: 13px; }
     .filters {
       display: grid;
@@ -501,12 +693,31 @@ _HTML_TEMPLATE = """<!doctype html>
     .kpi .sub { margin-top: 3px; color: var(--muted); font-size: 12px; }
     .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; margin-bottom: 14px; }
     .card { padding: 16px; min-width: 0; }
+    .card-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+    .card-head h2 { margin: 0; }
+    .entity-select { width: min(420px, 100%); }
     .col-4 { grid-column: span 4; }
     .col-6 { grid-column: span 6; }
     .col-8 { grid-column: span 8; }
     .col-12 { grid-column: span 12; }
     .chart { height: 220px; width: 100%; }
     .mini-chart { height: 170px; width: 100%; }
+    .detail-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 8px 0 14px; }
+    .detail-kpi { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); min-height: 70px; }
+    .detail-kpi .label { color: var(--muted); font-size: 12px; }
+    .detail-kpi .value { margin-top: 5px; font-size: 20px; font-weight: 750; }
+    .detail-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+    .detail-panel { grid-column: span 4; min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+    .detail-panel.wide { grid-column: span 8; }
+    .link-button {
+      border: 0;
+      background: transparent;
+      color: var(--blue);
+      padding: 0;
+      font: inherit;
+      cursor: pointer;
+    }
+    .link-button:hover { text-decoration: underline; }
     .empty { color: var(--muted); padding: 28px 0; text-align: center; border: 1px dashed var(--line); border-radius: 8px; background: var(--surface-soft); }
     .table-wrap { overflow: auto; max-height: 560px; border: 1px solid var(--line); border-radius: 8px; }
     table { width: 100%; border-collapse: collapse; min-width: 920px; background: var(--surface); }
@@ -530,6 +741,9 @@ _HTML_TEMPLATE = """<!doctype html>
     .pill.watch { background: #dcfce7; color: #166534; }
     .pill.a { background: #dbeafe; color: #1d4ed8; }
     .pill.b { background: #ccfbf1; color: #0f766e; }
+    .pill.up { background: #dcfce7; color: #166534; }
+    .pill.down { background: #ffe4e6; color: #9f1239; }
+    .pill.flat { background: #e0f2fe; color: #075985; }
     .muted { color: var(--muted); }
     .tags { display: flex; flex-wrap: wrap; gap: 4px; max-width: 260px; }
     .summary { max-width: 360px; min-width: 240px; color: #42505a; }
@@ -537,7 +751,8 @@ _HTML_TEMPLATE = """<!doctype html>
     @media (max-width: 1120px) {
       .filters { grid-template-columns: repeat(3, 1fr); }
       .kpis { grid-template-columns: repeat(4, 1fr); }
-      .col-4, .col-6, .col-8 { grid-column: span 12; }
+      .detail-kpis { grid-template-columns: repeat(3, 1fr); }
+      .col-4, .col-6, .col-8, .detail-panel, .detail-panel.wide { grid-column: span 12; }
     }
     @media (max-width: 720px) {
       .page { padding: 14px; }
@@ -546,6 +761,8 @@ _HTML_TEMPLATE = """<!doctype html>
       .filters { grid-template-columns: 1fr; }
       .span-2 { grid-column: span 1; }
       .kpis { grid-template-columns: repeat(2, 1fr); }
+      .detail-kpis { grid-template-columns: repeat(2, 1fr); }
+      .card-head { align-items: stretch; flex-direction: column; }
       h1 { font-size: 24px; }
     }
   </style>
@@ -583,6 +800,26 @@ _HTML_TEMPLATE = """<!doctype html>
       <article class="card col-4"><h2>行业热度</h2><div class="mini-chart" id="industryChart"></div></article>
       <article class="card col-4"><h2>主题趋势</h2><div class="mini-chart" id="themeChart"></div></article>
       <article class="card col-4"><h2>热点原因</h2><div class="mini-chart" id="reasonChart"></div></article>
+    </section>
+
+    <section class="grid">
+      <article class="card col-12" id="drilldownCard">
+        <div class="card-head">
+          <h2>研究对象 Drilldown</h2>
+          <div class="field entity-select"><label for="entitySelect">公司 / 行业</label><select id="entitySelect"></select></div>
+        </div>
+        <div class="detail-kpis" id="entityKpis"></div>
+        <div class="detail-grid">
+          <div class="detail-panel"><h3>覆盖时间线</h3><div class="mini-chart" id="entityCoverageChart"></div></div>
+          <div class="detail-panel"><h3>券商扩散</h3><div class="mini-chart" id="entityBrokerChart"></div></div>
+          <div class="detail-panel"><h3>信号分数</h3><div class="mini-chart" id="entityScoreChart"></div></div>
+          <div class="detail-panel"><h3>目标价轨迹</h3><div class="mini-chart" id="entityTargetChart"></div></div>
+          <div class="detail-panel"><h3>EPS 轨迹</h3><div class="mini-chart" id="entityEpsChart"></div></div>
+          <div class="detail-panel"><h3>券商 / 主题</h3><div class="mini-chart" id="entityBrokerMix"></div><div class="mini-chart" id="entityThemeMix"></div></div>
+          <div class="detail-panel wide"><h3>连续观点</h3><div class="table-wrap"><table id="entityOpinionTable"></table></div></div>
+          <div class="detail-panel"><h3>最新研报</h3><div class="table-wrap"><table id="entityReportTable"></table></div></div>
+        </div>
+      </article>
     </section>
 
     <section class="grid">
@@ -668,10 +905,12 @@ _HTML_TEMPLATE = """<!doctype html>
       state.hotspot = $("hotspotFilter").value;
       state.theme = $("themeFilter").value;
       state.reason = $("reasonFilter").value;
+      state.entityKey = $("entitySelect").value;
     }
     function initFilters() {
       const reports = DATA.reports || [];
       const hotspots = DATA.hotspots || [];
+      const entities = DATA.entityDrilldowns || [];
       const dates = uniq(reports.map((r) => r.date));
       if (dates.length) {
         $("startDate").value = dates[0];
@@ -685,6 +924,11 @@ _HTML_TEMPLATE = """<!doctype html>
       $("hotspotFilter").innerHTML = optionList(uniq(hotspots.map((h) => h.hotspotLevel)), "热点");
       $("themeFilter").innerHTML = optionList(uniq(reports.flatMap((r) => r.themeTags || [])), "主题");
       $("reasonFilter").innerHTML = optionList(uniq(hotspots.flatMap((h) => h.reasonCodes || [])), "原因");
+      $("entitySelect").innerHTML = [`<option value="">自动选择研究对象</option>`, ...entities.map((entity) => {
+        const type = entity.entityType === "company" ? "公司" : "行业";
+        const suffix = `${entity.reportCount}篇 / ${entity.brokerCount}家`;
+        return `<option value="${escapeAttr(entity.entityKey)}">${type}｜${escapeHtml(entity.label)}（${suffix}）</option>`;
+      })].join("");
       document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", render));
       $("meta").innerHTML = `${escapeHtml(DATA.meta.firstDate || "-")} 至 ${escapeHtml(DATA.meta.latestDate || "-")}<br>生成于 ${escapeHtml(DATA.meta.generatedAt || "")}`;
     }
@@ -764,16 +1008,121 @@ _HTML_TEMPLATE = """<!doctype html>
         }).join("")}
       </svg>`;
     }
+    function rowsWithDateNames(rows) {
+      return (rows || []).map((row) => ({ name: row.name || String(row.date || "").slice(5), count: Number(row.count || 0) }));
+    }
+    function entityMatchesCurrentFilters(entity) {
+      const text = [entity.label, entity.stockCode, entity.industryName, ...(entity.reasonCodes || [])].join(" ").toLowerCase();
+      return (!state.search || text.includes(state.search.toLowerCase()))
+        && (!state.company || entity.label === state.company || entity.stockCode === state.company)
+        && (!state.industry || entity.industryName === state.industry || entity.label === state.industry)
+        && (!state.hotspot || entity.hotspotLevel === state.hotspot)
+        && (!state.reason || (entity.reasonCodes || []).includes(state.reason));
+    }
+    function entityKeyForReport(row) {
+      const entities = DATA.entityDrilldowns || [];
+      const company = entities.find((entity) => entity.entityType === "company" && ((row.stockCode && entity.stockCode === row.stockCode) || entity.label === row.stockName));
+      if (company) return company.entityKey;
+      const industry = entities.find((entity) => entity.entityType === "industry" && entity.label === row.industryName);
+      return industry ? industry.entityKey : "";
+    }
+    function entityKeyForHotspot(row) {
+      const entities = DATA.entityDrilldowns || [];
+      const company = entities.find((entity) => entity.entityType === "company" && row.entityType === "company" && ((row.stockCode && entity.stockCode === row.stockCode) || entity.label === row.entityName));
+      if (company) return company.entityKey;
+      const industry = entities.find((entity) => entity.entityType === "industry" && (entity.label === row.entityName || entity.label === row.industryName));
+      return industry ? industry.entityKey : "";
+    }
+    function directionSummary(summary) {
+      const safe = summary || {};
+      return `↑${safe.up || 0} ↓${safe.down || 0} →${safe.flat || 0}`;
+    }
+    function renderEntityTable(entity) {
+      const reports = entity.latestReports || [];
+      if (!reports.length) {
+        $("entityReportTable").innerHTML = `<tbody><tr><td><div class="empty">暂无研报</div></td></tr></tbody>`;
+        return;
+      }
+      $("entityReportTable").innerHTML = `<thead><tr><th>日期</th><th>券商</th><th>评级</th><th>分数</th><th>文件</th></tr></thead><tbody>
+        ${reports.map((row) => `<tr>
+          <td>${escapeHtml(row.date)}</td>
+          <td>${escapeHtml(row.orgName)}</td>
+          <td>${escapeHtml(row.rating || "-")}</td>
+          <td>${pill(row.priorityBucket)} ${row.signalScore}</td>
+          <td>${row.fileHref ? `<a href="${escapeAttr(row.fileHref)}">${escapeHtml(row.file || "打开")}</a>` : `<span class="muted">-</span>`}</td>
+        </tr>`).join("")}
+      </tbody>`;
+    }
+    function renderEntityOpinion(entity) {
+      const trends = entity.opinionTrends || [];
+      if (!trends.length) {
+        $("entityOpinionTable").innerHTML = `<tbody><tr><td><div class="empty">暂无同一机构连续观点</div></td></tr></tbody>`;
+        return;
+      }
+      $("entityOpinionTable").innerHTML = `<thead><tr><th>券商</th><th>日期</th><th>评级</th><th>目标价</th><th>EPS</th><th>分数</th></tr></thead><tbody>
+        ${trends.map((row) => `<tr>
+          <td>${escapeHtml(row.orgName)}</td>
+          <td>${escapeHtml(row.previousDate)} → ${escapeHtml(row.latestDate)}</td>
+          <td>${escapeHtml(row.previousRating || "-")} → ${escapeHtml(row.latestRating || "-")}<div class="muted">${escapeHtml(row.ratingChange || "")}</div></td>
+          <td>${escapeHtml(row.previousTargetPrice || "-")} → ${escapeHtml(row.latestTargetPrice || "-")} ${pill(row.targetDirection)}</td>
+          <td>${escapeHtml(row.previousEps || "-")} → ${escapeHtml(row.latestEps || "-")} ${pill(row.epsDirection)}</td>
+          <td>${row.previousScore} → ${row.latestScore} ${pill(row.scoreDirection)}</td>
+        </tr>`).join("")}
+      </tbody>`;
+    }
+    function renderDrilldown() {
+      const entities = DATA.entityDrilldowns || [];
+      const selected = state.entityKey ? entities.find((entity) => entity.entityKey === state.entityKey) : null;
+      const entity = selected || entities.filter(entityMatchesCurrentFilters)[0] || entities[0];
+      if (!entity) {
+        $("entityKpis").innerHTML = `<div class="empty">暂无研究对象</div>`;
+        ["entityCoverageChart", "entityBrokerChart", "entityScoreChart", "entityTargetChart", "entityEpsChart", "entityBrokerMix", "entityThemeMix"].forEach((id) => $(id).innerHTML = `<div class="empty">暂无数据</div>`);
+        $("entityOpinionTable").innerHTML = `<tbody><tr><td><div class="empty">暂无连续观点记录</div></td></tr></tbody>`;
+        $("entityReportTable").innerHTML = `<tbody><tr><td><div class="empty">暂无研报</div></td></tr></tbody>`;
+        return;
+      }
+      if (!state.entityKey && $("entitySelect").value !== "") $("entitySelect").value = "";
+      const summary = entity.opinionSummary || {};
+      const kpis = [
+        ["对象", entity.label, entity.entityType === "company" ? entity.stockCode || "公司" : "行业"],
+        ["覆盖", entity.reportCount, `${entity.firstDate || "-"} → ${entity.latestDate || "-"}`],
+        ["券商", entity.brokerCount, "不同机构"],
+        ["均分", entity.avgScore, "signalScore"],
+        ["热点", entity.hotspotLevel || "-", (entity.reasonCodes || []).join(" | ") || "无"],
+        ["观点", summary.trendCount || 0, `目标 ${directionSummary(summary.target)} / EPS ${directionSummary(summary.eps)}`],
+      ];
+      $("entityKpis").innerHTML = kpis.map(([label, value, sub]) => `<div class="detail-kpi"><div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(value)}</div><div class="sub muted">${escapeHtml(sub)}</div></div>`).join("");
+      drawLine("entityCoverageChart", entity.coverageByDay || [], "var(--blue)");
+      drawLine("entityBrokerChart", rowsWithDateNames(entity.brokerByDay), "var(--teal)");
+      drawLine("entityScoreChart", rowsWithDateNames(entity.scoreByDay), "var(--green)");
+      drawLine("entityTargetChart", rowsWithDateNames(entity.targetTimeline), "var(--amber)");
+      drawLine("entityEpsChart", rowsWithDateNames(entity.epsTimeline), "var(--rose)");
+      drawBar("entityBrokerMix", entity.topBrokers || [], "var(--teal)");
+      drawBar("entityThemeMix", entity.topThemes || [], "var(--amber)");
+      renderEntityOpinion(entity);
+      renderEntityTable(entity);
+    }
+    function bindEntityButtons() {
+      document.querySelectorAll("[data-entity-key]").forEach((button) => {
+        button.addEventListener("click", () => {
+          $("entitySelect").value = button.dataset.entityKey || "";
+          render();
+          $("drilldownCard").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
+    }
     function pill(value) {
       const lower = String(value || "").toLowerCase();
-      const cls = lower === "strong" ? "strong" : lower === "hot" ? "hot" : lower === "watch" ? "watch" : lower === "a" ? "a" : lower === "b" ? "b" : "";
+      const cls = lower === "strong" ? "strong" : lower === "hot" ? "hot" : lower === "watch" ? "watch" : lower === "a" ? "a" : lower === "b" ? "b" : lower === "up" ? "up" : lower === "down" ? "down" : lower === "flat" ? "flat" : "";
       return `<span class="pill ${cls}">${escapeHtml(value || "-")}</span>`;
     }
     function renderHotspots(rows) {
       const limited = rows.sort((a, b) => (levelRank[a.hotspotLevel] ?? 9) - (levelRank[b.hotspotLevel] ?? 9) || b.coverage30d - a.coverage30d).slice(0, 120);
       if (!limited.length) { $("hotspotTable").innerHTML = `<tbody><tr><td><div class="empty">暂无热点信号</div></td></tr></tbody>`; return; }
-      $("hotspotTable").innerHTML = `<thead><tr><th>标的</th><th>等级</th><th>行业</th><th>30日/7日</th><th>券商</th><th>加速</th><th>买入比</th><th>原因</th></tr></thead><tbody>
-        ${limited.map((row) => `<tr>
+      $("hotspotTable").innerHTML = `<thead><tr><th>标的</th><th>等级</th><th>行业</th><th>30日/7日</th><th>券商</th><th>加速</th><th>买入比</th><th>原因</th><th>操作</th></tr></thead><tbody>
+        ${limited.map((row) => {
+          const entityKey = entityKeyForHotspot(row);
+          return `<tr>
           <td><strong>${escapeHtml(row.entityName)}</strong><div class="muted">${escapeHtml(row.stockCode || row.entityType)}</div></td>
           <td>${pill(row.hotspotLevel)}</td>
           <td>${escapeHtml(row.industryName)}</td>
@@ -782,7 +1131,9 @@ _HTML_TEMPLATE = """<!doctype html>
           <td>${row.coverageAcceleration}</td>
           <td>${Math.round((row.buyRatio || 0) * 100)}%</td>
           <td><div class="tags">${(row.reasonCodes || []).map((x) => `<span class="pill">${escapeHtml(x)}</span>`).join("")}</div><div class="muted">${escapeHtml((row.reasons || []).join("；"))}</div></td>
-        </tr>`).join("")}
+          <td>${entityKey ? `<button type="button" class="link-button" data-entity-key="${escapeAttr(entityKey)}">查看</button>` : `<span class="muted">-</span>`}</td>
+        </tr>`;
+        }).join("")}
       </tbody>`;
     }
     function renderOpinion(rows) {
@@ -791,8 +1142,10 @@ _HTML_TEMPLATE = """<!doctype html>
         && (!state.industry || row.industryName === state.industry)
         && (!state.broker || row.orgName === state.broker));
       if (!filtered.length) { $("opinionTable").innerHTML = `<tbody><tr><td><div class="empty">暂无连续观点记录</div></td></tr></tbody>`; return; }
-      $("opinionTable").innerHTML = `<thead><tr><th>标的</th><th>券商</th><th>日期</th><th>评级</th><th>目标价</th><th>EPS</th><th>分数</th><th>次数</th></tr></thead><tbody>
-        ${filtered.slice(0, 120).map((row) => `<tr>
+      $("opinionTable").innerHTML = `<thead><tr><th>标的</th><th>券商</th><th>日期</th><th>评级</th><th>目标价</th><th>EPS</th><th>分数</th><th>次数</th><th>操作</th></tr></thead><tbody>
+        ${filtered.slice(0, 120).map((row) => {
+          const entityKey = entityKeyForReport(row);
+          return `<tr>
           <td><strong>${escapeHtml(row.stockName)}</strong><div class="muted">${escapeHtml(row.stockCode || row.industryName)}</div></td>
           <td>${escapeHtml(row.orgName)}</td>
           <td>${escapeHtml(row.previousDate)} → ${escapeHtml(row.latestDate)}</td>
@@ -801,14 +1154,18 @@ _HTML_TEMPLATE = """<!doctype html>
           <td>${escapeHtml(row.previousEps || "-")} → ${escapeHtml(row.latestEps || "-")} ${pill(row.epsDirection)}</td>
           <td>${row.previousScore} → ${row.latestScore} ${pill(row.scoreDirection)}</td>
           <td>${row.count}</td>
-        </tr>`).join("")}
+          <td>${entityKey ? `<button type="button" class="link-button" data-entity-key="${escapeAttr(entityKey)}">查看</button>` : `<span class="muted">-</span>`}</td>
+        </tr>`;
+        }).join("")}
       </tbody>`;
     }
     function renderReports(rows) {
       const limited = [...rows].sort((a, b) => String(b.date).localeCompare(String(a.date)) || Number(b.signalScore || 0) - Number(a.signalScore || 0)).slice(0, 400);
       if (!limited.length) { $("reportTable").innerHTML = `<tbody><tr><td><div class="empty">暂无研报明细</div></td></tr></tbody>`; return; }
-      $("reportTable").innerHTML = `<thead><tr><th>日期</th><th>标的</th><th>券商</th><th>评级</th><th>分数</th><th>主题</th><th>摘要</th><th>文件</th></tr></thead><tbody>
-        ${limited.map((row) => `<tr>
+      $("reportTable").innerHTML = `<thead><tr><th>日期</th><th>标的</th><th>券商</th><th>评级</th><th>分数</th><th>主题</th><th>摘要</th><th>文件</th><th>操作</th></tr></thead><tbody>
+        ${limited.map((row) => {
+          const entityKey = entityKeyForReport(row);
+          return `<tr>
           <td>${escapeHtml(row.date)}</td>
           <td><strong>${escapeHtml(row.stockName || row.industryName)}</strong><div class="muted">${escapeHtml(row.stockCode || row.industryName)}</div></td>
           <td>${escapeHtml(row.orgName)}</td>
@@ -817,7 +1174,9 @@ _HTML_TEMPLATE = """<!doctype html>
           <td><div class="tags">${(row.themeTags || []).slice(0, 5).map((x) => `<span class="pill">${escapeHtml(x)}</span>`).join("")}</div></td>
           <td class="summary">${escapeHtml(row.summary || row.title || "")}</td>
           <td>${row.fileHref ? `<a href="${escapeAttr(row.fileHref)}">${escapeHtml(row.file || "打开")}</a>` : `<span class="muted">-</span>`}</td>
-        </tr>`).join("")}
+          <td>${entityKey ? `<button type="button" class="link-button" data-entity-key="${escapeAttr(entityKey)}">查看</button>` : `<span class="muted">-</span>`}</td>
+        </tr>`;
+        }).join("")}
       </tbody>`;
     }
     function render() {
@@ -832,9 +1191,11 @@ _HTML_TEMPLATE = """<!doctype html>
       drawBar("reasonChart", countTokens(hotspots, (r) => r.reasonCodes, 10), "var(--rose)");
       drawBar("qualityChart", countBy(reports, (r) => r.status || "unknown", 8), "var(--green)");
       drawBar("sourceChart", countBy(reports, (r) => r.source || "unknown", 8), "var(--blue)");
+      renderDrilldown();
       renderHotspots(hotspots);
       renderOpinion(reports);
       renderReports(reports);
+      bindEntityButtons();
       $("footer").textContent = `显示 ${reports.length} 篇研报，${hotspots.length} 条热点信号，索引文件 ${DATA.meta.reportIndexCount || 0} 个`;
     }
     initFilters();

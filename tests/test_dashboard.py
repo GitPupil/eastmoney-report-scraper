@@ -150,11 +150,25 @@ def test_dashboard_data_and_html_generation(tmp_path: Path):
     assert data["coverageHistoryCount"] == 1
     assert data["opinionTrends"][0]["targetDirection"] == "up"
     assert data["opinionTrends"][0]["epsDirection"] == "up"
+    company = next(entity for entity in data["entityDrilldowns"] if entity["entityType"] == "company")
+    assert company["label"] == "热点样本"
+    assert company["reportCount"] == 2
+    assert company["brokerCount"] == 1
+    assert company["coverageByDay"] == [
+        {"name": "05-12", "date": "2026-05-12", "count": 1},
+        {"name": "05-13", "date": "2026-05-13", "count": 1},
+    ]
+    assert company["targetTimeline"][-1]["count"] == 35.0
+    assert company["epsTimeline"][-1]["count"] == 1.2
+    assert company["opinionSummary"]["target"]["up"] == 1
+    assert company["latestReports"][0]["title"] == "目标价上修"
 
     dashboard_path = write_dashboard(tmp_path)
     html = dashboard_path.read_text(encoding="utf-8")
     assert dashboard_path.name == "DASHBOARD.html"
     assert "Research Dashboard" in html
+    assert "研究对象 Drilldown" in html
+    assert "目标价轨迹" in html
     assert "近期热点" in html
     assert "热点样本" in html
     assert "FIRST_COVERAGE" in html
@@ -166,4 +180,5 @@ def test_dashboard_handles_empty_output_root(tmp_path: Path):
     data = build_dashboard_data(tmp_path)
     assert data["reports"] == []
     assert data["hotspots"] == []
+    assert data["entityDrilldowns"] == []
     assert "暂无数据" in html
