@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eastmoney-report-scraper"
-version = "0.4.0"
+version = "0.5.0"
 description = "Research-oriented scraper for Eastmoney research reports"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -30,6 +30,10 @@ dependencies = ["beautifulsoup4>=4.12"]
 
 [project.optional-dependencies]
 xlsx = ["openpyxl>=3.1"]
+app = [
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+]
 dev = [
   "beautifulsoup4>=4.12",
   "openpyxl>=3.1",

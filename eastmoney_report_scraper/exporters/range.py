@@ -5,13 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List
 
+from ..constants import QTYPE_NAMES
 from ..models import DayRun
 from .common import _analysis_for
 
 def write_range_summary(root_dir: Path, day_runs: List[DayRun], qtype: int) -> None:
     if len(day_runs) <= 1:
         return
-    qtype_name = "个股研报" if qtype == 0 else "行业研报"
+    qtype_name = QTYPE_NAMES.get(qtype, str(qtype))
     total_list = sum(len(run.raw_list) for run in day_runs)
     total_fetched = sum(len(run.results) for run in day_runs)
     total_ok = sum(sum(r.status == "ok" for r in run.results) for run in day_runs)

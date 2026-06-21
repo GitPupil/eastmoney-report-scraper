@@ -15,8 +15,10 @@ from eastmoney_report_scraper.cli import (
     daterange,
     existing_markdown_map,
     fetch_detail,
+    fetch_report_lists_for_date,
     filter_items,
     parse_date,
+    qtype_values,
     read_manifest,
     select_resume_error_items,
 )
@@ -76,6 +78,36 @@ def test_date_and_url_helpers():
     assert "beginTime=2026-05-12" in url
     assert "pageNo=2" in url
     assert "qType=1" in url
+    assert qtype_values(0) == [0]
+    assert qtype_values(1) == [1]
+    assert qtype_values(2) == [0, 1]
+
+
+def test_all_qtype_fetches_stock_and_industry_lists(monkeypatch, tmp_path: Path):
+    calls = []
+
+    def fake_fetch_report_list(target_date, page_size, qtype, timeout, retries, retry_delay, log_path):
+        calls.append(qtype)
+        if qtype == 0:
+            return [
+                {"stockName": "个股A", "stockCode": "000001", "infoCode": "S1"},
+                {"stockName": "重复", "stockCode": "000002", "infoCode": "DUP"},
+            ]
+        return [
+            {"industryName": "行业A", "infoCode": "I1"},
+            {"industryName": "重复行业", "infoCode": "DUP"},
+        ]
+
+    monkeypatch.setattr("eastmoney_report_scraper.cli.fetch_report_list", fake_fetch_report_list)
+    args = argparse.Namespace(qtype=2, page_size=100, timeout=1, retries=0, retry_delay=0)
+
+    rows, counts = fetch_report_lists_for_date("2026-05-12", args, tmp_path / "run.log.jsonl")
+
+    assert calls == [0, 1]
+    assert counts == {"0": 2, "1": 2}
+    assert [row["infoCode"] for row in rows] == ["S1", "I1", "DUP"]
+    assert rows[0]["reportType"] == "stock"
+    assert rows[1]["reportType"] == "industry"
 
 
 def test_filters_and_filename():

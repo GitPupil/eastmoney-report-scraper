@@ -2,9 +2,12 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
 .DS_Store
 .pytest_cache/
 .ruff_cache/
 .pycache_check/
 pytest-cache-files-*/
+.ui_check/
 eastmoney_reports/
+eastmoney_reports_check/

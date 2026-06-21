@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-06-21
+
+### Added
+- optional Local App dependencies through `.[app]`
+- `eastmoney-report-scraper app` command for a local FastAPI/Uvicorn web workspace
+- `eastmoney-report-scraper import-existing` command for importing existing outputs into SQLite
+- `--open-browser` for opening the local app URL after startup
+- `start_local_app.bat` for one-click Windows startup from a fresh checkout, including optional Python 3.12 installation through `winget`
+- local SQLite cache `eastmoney.db` for reports, hotspots, coverage history, manifests, and run status
+- `local_app_config.json` for local app defaults
+- local app service and task layers with background CLI-based fetch runs
+- tests for config, SQLite import, service payloads, task transitions, and import CLI output
+- `--qtype 2` / Local App `全部` mode for fetching stock and industry reports together
+- Local App visual analysis panel for company/industry trends, broker diffusion, ratings, priority buckets, target price/EPS timelines, and continuous opinion changes
+
+### Changed
+- bumped project version to `0.5.0`
+- documented Local App Mode while keeping OpenClaw/CLI as the stable default workflow
+
 ## [0.4.0] - 2026-06-20
 
 ### Added

@@ -29,6 +29,8 @@ metadata:
 
 它不是新闻检索工具，也不是实时行情工具。遇到“抓研报、整理研报、生成研报摘要/看板/AI 分析输入”这类任务时使用它。
 
+项目也提供可选 Local App，但 OpenClaw/agent 默认仍使用 CLI workflow；除非用户明确要求启动本地 Web App，否则不要使用 `eastmoney-report-scraper app`。
+
 ## When To Use
 
 适合处理：
@@ -130,6 +132,12 @@ python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --org 中邮证券 
 python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --qtype 1 --industry 化学制药
 ```
 
+### 同时抓个股和行业研报
+
+```bash
+python3 {baseDir}/scripts/fetch_reports.py --date 2026-05-12 --qtype 2
+```
+
 ### 重抓弱提取结果
 
 ```bash
@@ -166,13 +174,22 @@ python3 {baseDir}/scripts/fetch_reports.py --hotspots-only --output-dir ./eastmo
 python3 {baseDir}/scripts/fetch_reports.py --dashboard-only --output-dir ./eastmoney_reports
 ```
 
+### 本地 Web App（仅用户明确要求时）
+
+```bash
+eastmoney-report-scraper import-existing --output-dir ./eastmoney_reports
+eastmoney-report-scraper app --output-dir ./eastmoney_reports --port 8765 --open-browser
+```
+
+Windows 本地用户可以双击项目根目录的 `start_local_app.bat`。
+
 ## Parameters
 
 | 参数 | 用途 |
 |---|---|
 | `--date` | 单日抓取，格式 `YYYY-MM-DD` |
 | `--start-date` / `--end-date` | 日期区间抓取 |
-| `--qtype` | `0=个股研报`，`1=行业研报` |
+| `--qtype` | `0=个股研报`，`1=行业研报`，`2=全部` |
 | `--limit` | 每日最多抓取 N 篇，适合试跑 |
 | `--stock` | 按股票名或代码筛选，可重复传 |
 | `--org` | 按机构筛选，可重复传 |

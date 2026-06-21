@@ -17,18 +17,24 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .analysis import build_structured_analysis, extract_summary
 from .client import fetch_report_list, http_get_with_retry
+from .config import load_local_app_config, save_local_app_config
 from .constants import (
     DEFAULT_COVERAGE_HISTORY_NAME,
     DEFAULT_DASHBOARD_NAME,
     DEFAULT_MANIFEST_NAME,
     DEFAULT_OUTPUT_ROOT,
     DETAIL_URL_TEMPLATE,
+    QTYPE_ALL,
+    QTYPE_INDUSTRY,
+    QTYPE_NAMES,
+    QTYPE_STOCK,
 )
 from .dashboard import write_dashboard
 from .exporters import build_markdown, read_coverage_history, update_coverage_history, write_day_summary, write_range_summary
 from .hotspots import HotspotConfig, write_hotspot_outputs
 from .models import DayRun, FetchResult
 from .parser import extract_pdf_text, extract_pdf_url, extract_report_text, text_quality
+from .storage.sqlite import import_existing_outputs, init_db
 from .utils import log_event, sanitize_filename
 
 
@@ -98,6 +104,55 @@ def filter_items(items: List[Dict[str, Any]], args: argparse.Namespace) -> List[
             continue
         filtered.append(item)
     return filtered
+
+
+def qtype_values(qtype: int) -> List[int]:
+    return [QTYPE_STOCK, QTYPE_INDUSTRY] if qtype == QTYPE_ALL else [qtype]
+
+
+def _report_type_for_qtype(qtype: int) -> str:
+    return "industry" if qtype == QTYPE_INDUSTRY else "stock"
+
+
+def _annotate_report_type(item: Dict[str, Any], qtype: int) -> Dict[str, Any]:
+    copied = dict(item)
+    copied.setdefault("reportType", _report_type_for_qtype(qtype))
+    copied.setdefault("qType", qtype)
+    return copied
+
+
+def _interleave_item_groups(groups: List[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    merged: List[Dict[str, Any]] = []
+    max_len = max((len(group) for group in groups), default=0)
+    for index in range(max_len):
+        for group in groups:
+            if index < len(group):
+                merged.append(group[index])
+    return merged
+
+
+def _dedupe_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    deduped: List[Dict[str, Any]] = []
+    seen = set()
+    for index, item in enumerate(items):
+        key = item.get("infoCode") or f"missing-{index}"
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
+def fetch_report_lists_for_date(target_date: str, args: argparse.Namespace, log_path: Path) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+    groups: List[List[Dict[str, Any]]] = []
+    counts: Dict[str, int] = {}
+    for qtype in qtype_values(args.qtype):
+        rows = fetch_report_list(target_date, args.page_size, qtype, args.timeout, args.retries, args.retry_delay, log_path)
+        annotated = [_annotate_report_type(item, qtype) for item in rows]
+        groups.append(annotated)
+        counts[str(qtype)] = len(annotated)
+    merged = groups[0] if len(groups) == 1 else _interleave_item_groups(groups)
+    return _dedupe_items(merged), counts
 
 
 def existing_markdown_map(output_dir: Path) -> Dict[str, Path]:
@@ -355,7 +410,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-date", help="Start date in YYYY-MM-DD")
     parser.add_argument("--end-date", help="End date in YYYY-MM-DD")
     parser.add_argument("--limit", type=int, default=None, help="Only fetch first N reports for each date")
-    parser.add_argument("--qtype", type=int, default=0, choices=[0, 1], help="0=stock reports, 1=industry reports")
+    parser.add_argument("--qtype", type=int, default=0, choices=[QTYPE_STOCK, QTYPE_INDUSTRY, QTYPE_ALL], help="0=stock reports, 1=industry reports, 2=all")
     parser.add_argument("--page-size", type=int, default=100, help="List API page size")
     parser.add_argument("--delay", type=float, default=0.3, help="Delay seconds between detail requests")
     parser.add_argument("--timeout", type=int, default=20, help="HTTP timeout in seconds")
@@ -389,6 +444,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-dashboard", action="store_true", help="Skip static HTML dashboard generation")
     parser.add_argument("--dashboard-name", default=DEFAULT_DASHBOARD_NAME, help="Static HTML dashboard file name")
     return parser.parse_args()
+
+
+def parse_app_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the local Eastmoney report scraper web app.")
+    parser.add_argument("--host", default=None, help="Local app host, default 127.0.0.1")
+    parser.add_argument("--port", type=int, default=None, help="Local app port, default 8765")
+    parser.add_argument("--output-dir", default=None, help="Output root directory")
+    parser.add_argument("--db-path", default=None, help="SQLite database path")
+    parser.add_argument("--config-path", default=None, help="Local app config JSON path")
+    parser.add_argument("--open-browser", action="store_true", help="Open the local app URL in the default browser")
+    return parser.parse_args(argv)
+
+
+def parse_import_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Import existing scraper outputs into the local SQLite database.")
+    parser.add_argument("--output-dir", default=None, help="Output root directory")
+    parser.add_argument("--db-path", default=None, help="SQLite database path")
+    parser.add_argument("--config-path", default=None, help="Local app config JSON path")
+    return parser.parse_args(argv)
 
 
 def make_root_dir(output_root: Path, date_values: List[str]) -> Path:
@@ -483,6 +557,60 @@ def run_dashboard_only(output_root: Path, dashboard_name: str = DEFAULT_DASHBOAR
     )
 
 
+def run_import_existing_command(argv: Optional[Sequence[str]] = None) -> None:
+    args = parse_import_args(argv)
+    output_dir = Path(args.output_dir).expanduser() if args.output_dir else None
+    db_path = Path(args.db_path).expanduser() if args.db_path else None
+    config_path = Path(args.config_path).expanduser() if args.config_path else None
+    config = load_local_app_config(output_dir=output_dir, db_path=db_path, config_path=config_path)
+    save_local_app_config(config, config_path=config_path)
+    counts = import_existing_outputs(Path(config.output_dir), Path(config.db_path))
+    print(
+        json.dumps(
+            {
+                "mode": "import-existing",
+                "output_dir": config.output_dir,
+                "db_path": config.db_path,
+                "imported": counts,
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
+def run_app_command(argv: Optional[Sequence[str]] = None) -> None:
+    args = parse_app_args(argv)
+    output_dir = Path(args.output_dir).expanduser() if args.output_dir else None
+    db_path = Path(args.db_path).expanduser() if args.db_path else None
+    config_path = Path(args.config_path).expanduser() if args.config_path else None
+    config = load_local_app_config(output_dir=output_dir, db_path=db_path, config_path=config_path)
+    if args.host:
+        config = config.__class__(**{**config.__dict__, "host": args.host})
+    if args.port:
+        config = config.__class__(**{**config.__dict__, "port": args.port})
+    save_local_app_config(config, config_path=config_path)
+    init_db(Path(config.db_path))
+    try:
+        from .app.server import run_app
+
+        print(
+            json.dumps(
+                {
+                    "mode": "app",
+                    "ok": True,
+                    "url": f"http://{config.host}:{config.port}",
+                    "output_dir": config.output_dir,
+                    "db_path": config.db_path,
+                    "open_browser": args.open_browser,
+                },
+                ensure_ascii=False,
+            )
+        )
+        run_app(config, open_browser=args.open_browser)
+    except RuntimeError as exc:
+        print(json.dumps({"mode": "app", "ok": False, "error": str(exc)}, ensure_ascii=False))
+
+
 def run_list_mode(date_values: List[str], root_dir: Path, args: argparse.Namespace, include_items: bool) -> None:
     root_dir.mkdir(parents=True, exist_ok=True)
     days = []
@@ -490,11 +618,14 @@ def run_list_mode(date_values: List[str], root_dir: Path, args: argparse.Namespa
         output_dir = root_dir if args.date else root_dir / f"研报_{target_date}"
         output_dir.mkdir(parents=True, exist_ok=True)
         log_path = output_dir / "run.log.jsonl"
-        raw_list = fetch_report_list(target_date, args.page_size, args.qtype, args.timeout, args.retries, args.retry_delay, log_path)
+        raw_list, qtype_counts = fetch_report_lists_for_date(target_date, args, log_path)
         filtered_list = filter_items(raw_list, args)
         selected = filtered_list[: args.limit] if args.limit else filtered_list
         day_entry = {
             "date": target_date,
+            "qtype": args.qtype,
+            "qtype_name": QTYPE_NAMES.get(args.qtype, str(args.qtype)),
+            "qtype_counts": qtype_counts,
             "raw_count": len(raw_list),
             "filtered_count": len(filtered_list),
             "selected_count": len(selected),
@@ -522,7 +653,7 @@ def run_for_date(target_date: str, root_dir: Path, args: argparse.Namespace) -> 
     output_dir.mkdir(parents=True, exist_ok=True)
     log_path = output_dir / "run.log.jsonl"
     manifest_path = output_dir / args.manifest_name
-    raw_list = fetch_report_list(target_date, args.page_size, args.qtype, args.timeout, args.retries, args.retry_delay, log_path)
+    raw_list, qtype_counts = fetch_report_lists_for_date(target_date, args, log_path)
     filtered_list = filter_items(raw_list, args)
     items = filtered_list[: args.limit] if args.limit else filtered_list
     resume_map = existing_markdown_map(output_dir)
@@ -530,7 +661,7 @@ def run_for_date(target_date: str, root_dir: Path, args: argparse.Namespace) -> 
     if args.resume_errors_only:
         items = select_resume_error_items(items, manifest_map)
 
-    log_event(log_path, "info", "day_start", date=target_date, raw=len(raw_list), filtered=len(filtered_list), selected=len(items))
+    log_event(log_path, "info", "day_start", date=target_date, qtype=args.qtype, qtypeCounts=qtype_counts, raw=len(raw_list), filtered=len(filtered_list), selected=len(items))
 
     results = fetch_details_for_day(items, target_date, output_dir, args, log_path, resume_map, manifest_map, manifest_path)
 
@@ -553,6 +684,13 @@ def run_for_date(target_date: str, root_dir: Path, args: argparse.Namespace) -> 
 
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "app":
+        run_app_command(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "import-existing":
+        run_import_existing_command(sys.argv[2:])
+        return
+
     args = parse_args()
     output_root = Path(args.output_dir).expanduser() if args.output_dir else DEFAULT_OUTPUT_ROOT
     if args.doctor:

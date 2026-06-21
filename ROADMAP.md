@@ -1,6 +1,6 @@
 # Roadmap
 
-## 0.4.0 Landed
+## 0.5.0 Landed
 
 - Modular package layout under `eastmoney_report_scraper/`
 - Compatibility script entrypoint in `scripts/fetch_reports.py`
@@ -20,6 +20,10 @@
 - CLI lightweight modes: `--doctor`, `--dry-run`, `--list-only`, `--hotspots-only`
 - Offline static `DASHBOARD.html`
 - Dashboard CLI modes: `--dashboard-only`, `--no-dashboard`, `--dashboard-name`
+- Optional Local App dependencies through `.[app]`
+- Local App commands: `app` and `import-existing`
+- SQLite local cache for reports, hotspots, coverage history, manifests, and run status
+- Local browser workspace for tasks, hotspots, reports, and dashboard data
 - GitHub Actions CI
 - Pytest fixtures and ruff development checks
 
@@ -27,18 +31,23 @@
 
 ## Next Milestones
 
-### 0.5.0: Extraction Reliability
+### 0.6.0: Extraction Reliability
 - Improve PDF text cleanup
 - Reduce noisy summary bullets
 - Add stronger handling for malformed pages
 
-### 0.6.0: Research Depth
+### 0.7.0: Research Depth
 - Improve headline and core-driver quality
 - Deepen consensus and divergence summaries
 - Add richer range-level synthesis
 - Calibrate hotspot reason categories on real small samples
 
-### 0.7.0: Developer Experience
+### 0.8.0: Data & AI Integrations
+- Add optional real-time market data API integration with user-provided local tokens
+- Add optional AI analysis workflow with user-provided model API tokens
+- Add token redaction helpers and tests so tokens never appear in logs, exports, dashboards, SQLite rows, or exceptions
+
+### 0.9.0: Developer Experience
 - Document release tagging and publishing workflow
 - Expand public examples and sample output screenshots
 - Add richer contribution examples

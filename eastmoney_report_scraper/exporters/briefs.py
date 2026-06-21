@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
+from ..constants import QTYPE_NAMES
 from ..models import FetchResult
 from .common import _analysis_for
 from .indexes import write_csv_index, write_xlsx_index
@@ -15,7 +16,7 @@ def write_day_summary(output_dir: Path, target_date: str, qtype: int, raw_list: 
     results = list(results)
     (output_dir / "report_list.json").write_text(json.dumps(raw_list, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    qtype_name = "个股研报" if qtype == 0 else "行业研报"
+    qtype_name = QTYPE_NAMES.get(qtype, str(qtype))
     lines = [
         f"# 东方财富研报采集汇总（{target_date}）",
         "",
