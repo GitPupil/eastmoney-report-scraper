@@ -80,6 +80,14 @@ The Windows script tries to install Python 3.12 with `winget` when Python is mis
 
 The local app can start fetch runs, import existing outputs, browse report details, and visualize company or industry trends including coverage, broker diffusion, signal scores, target price/EPS timelines, rating distribution, priority-bucket distribution, and continuous opinion changes from the same broker.
 
+Future real screenshots should live in `docs/assets/`:
+
+- `docs/assets/local-app-radar.png`: trading radar home.
+- `docs/assets/local-app-analysis.png`: company/industry visual analysis.
+- `docs/assets/local-app-preview.png`: Markdown preview page.
+
+This README does not reference placeholder images; add image embeds only after real screenshots are captured.
+
 ## Common Commands
 
 ```bash
@@ -264,7 +272,7 @@ eastmoney_report_scraper/
 ├── hotspots.py
 ├── dashboard.py
 ├── storage/
-├── app/
+├── app/          # Local App routes, templates, and static assets
 ├── config.py
 └── cli.py
 ```

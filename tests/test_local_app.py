@@ -9,6 +9,7 @@ import pytest
 
 from eastmoney_report_scraper.app.services import LocalAppServices
 from eastmoney_report_scraper.app.server import (
+    _APP_DIR,
     _INDEX_HTML,
     _markdown_to_html,
     _preview_html,
@@ -330,8 +331,13 @@ def test_app_cli_open_browser_arg():
 
 
 def test_local_app_html_has_tooltips_and_markdown_preview_links():
+    app_css = (_APP_DIR / "static" / "app.css").read_text(encoding="utf-8")
+    app_js = (_APP_DIR / "static" / "app.js").read_text(encoding="utf-8")
+
     assert "<title>Eastmoney研报分析</title>" in _INDEX_HTML
     assert "<h1>Eastmoney研报分析</h1>" in _INDEX_HTML
+    assert 'href="/static/app.css"' in _INDEX_HTML
+    assert 'src="/static/app.js"' in _INDEX_HTML
     assert "Eastmoney Local App" not in _INDEX_HTML
     assert 'id="meta" hidden' in _INDEX_HTML
     assert "交易雷达首页 / 研究工作台" in _INDEX_HTML
@@ -339,8 +345,8 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'id="radarMetrics"' in _INDEX_HTML
     assert 'id="radarList"' in _INDEX_HTML
     assert 'id="radarFocus"' in _INDEX_HTML
-    assert "function renderRadar" in _INDEX_HTML
-    assert "renderRadar(hotspots, reports)" in _INDEX_HTML
+    assert "function renderRadar" in app_js
+    assert "renderRadar(hotspots, reports)" in app_js
     assert 'id="filtersPanel"' in _INDEX_HTML
     assert 'id="globalStartDate"' in _INDEX_HTML
     assert 'id="companyFilter"' in _INDEX_HTML
@@ -363,24 +369,24 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'id="qualityChart"' in _INDEX_HTML
     assert 'id="sourceChart"' in _INDEX_HTML
     assert 'id="globalOpinionTable"' in _INDEX_HTML
-    assert "function filteredDashboardData" in _INDEX_HTML
-    assert "function renderDashboardViews" in _INDEX_HTML
-    assert "function renderOverviewCharts" in _INDEX_HTML
-    assert "function renderGlobalOpinion" in _INDEX_HTML
-    assert "api(\"/api/reports" not in _INDEX_HTML
-    assert "api(\"/api/hotspots" not in _INDEX_HTML
+    assert "function filteredDashboardData" in app_js
+    assert "function renderDashboardViews" in app_js
+    assert "function renderOverviewCharts" in app_js
+    assert "function renderGlobalOpinion" in app_js
+    assert "api(\"/api/reports" not in app_js
+    assert "api(\"/api/hotspots" not in app_js
     assert 'href="#analysisPanel"' in _INDEX_HTML
     assert '<option value="2">全部</option>' in _INDEX_HTML
     assert 'id="status"' in _INDEX_HTML
-    assert "正在导入已有输出" in _INDEX_HTML
-    assert "导入完成" in _INDEX_HTML
-    assert "刷新失败" in _INDEX_HTML
+    assert "正在导入已有输出" in app_js
+    assert "导入完成" in app_js
+    assert "刷新失败" in app_js
     assert "可视化分析" in _INDEX_HTML
     assert "核心趋势" in _INDEX_HTML
     assert "估值与结构" in _INDEX_HTML
-    assert "single-point" in _INDEX_HTML
-    assert "grid-template-columns: repeat(2, minmax(300px, 1fr))" in _INDEX_HTML
-    assert 'font-size="13"' in _INDEX_HTML
+    assert "single-point" in app_css
+    assert "grid-template-columns: repeat(2, minmax(300px, 1fr))" in app_css
+    assert 'font-size="13"' in app_js
     assert 'id="analysisSearch"' in _INDEX_HTML
     assert 'id="analysisEntity"' in _INDEX_HTML
     assert 'id="analysisRefreshBtn"' in _INDEX_HTML
@@ -391,14 +397,14 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'id="analysisPriorityChart"' in _INDEX_HTML
     assert 'id="analysisOpinionTable"' in _INDEX_HTML
     assert 'id="analysisLatestReports"' in _INDEX_HTML
-    assert "function loadAnalysis" in _INDEX_HTML
-    assert "function filteredAnalysisEntities" in _INDEX_HTML
-    assert 'api("/api/dashboard-data")' in _INDEX_HTML
+    assert "function loadAnalysis" in app_js
+    assert "function filteredAnalysisEntities" in app_js
+    assert 'api("/api/dashboard-data")' in app_js
     assert 'data-tip="每个日期最多抓取多少篇研报' in _INDEX_HTML
     assert "选择全部时，会先合并个股和行业列表再应用该限制" in _INDEX_HTML
-    assert "let fetchTuningTouched = false;" in _INDEX_HTML
-    assert '$("concurrency").value = "2";' in _INDEX_HTML
-    assert '$("jitter").value = "0.5";' in _INDEX_HTML
+    assert "let fetchTuningTouched = false;" in app_js
+    assert '$("concurrency").value = "2";' in app_js
+    assert '$("jitter").value = "0.5";' in app_js
     assert 'data-tip="同时抓取详情页的 worker 数' in _INDEX_HTML
     assert 'data-tip="每次详情请求额外增加 0 到该数值之间的随机等待秒数' in _INDEX_HTML
     assert 'id="reportLimit"' in _INDEX_HTML
@@ -407,8 +413,32 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'id="reportSearch"' in _INDEX_HTML
     assert 'id="reportPrevBtn"' in _INDEX_HTML
     assert 'id="reportNextBtn"' in _INDEX_HTML
-    assert "encodeURI(r.fileHref)" not in _INDEX_HTML
-    assert 'href="/preview/${esc(r.fileHref)}"' in _INDEX_HTML
+    assert "encodeURI(r.fileHref)" not in app_js
+    assert 'href="/preview/${esc(r.fileHref)}"' in app_js
+
+
+def test_local_app_serves_split_frontend_assets(tmp_path: Path):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("uvicorn")
+    try:
+        from fastapi.testclient import TestClient
+    except (ImportError, RuntimeError) as exc:
+        pytest.skip(str(exc))
+
+    app = create_app(LocalAppConfig(output_dir=str(tmp_path), db_path=str(tmp_path / "eastmoney.db")))
+    client = TestClient(app)
+
+    index_response = client.get("/")
+    css_response = client.get("/static/app.css")
+    js_response = client.get("/static/app.js")
+
+    assert index_response.status_code == 200
+    assert 'href="/static/app.css"' in index_response.text
+    assert 'src="/static/app.js"' in index_response.text
+    assert css_response.status_code == 200
+    assert ".chart-grid" in css_response.text
+    assert js_response.status_code == 200
+    assert "function renderDashboardViews" in js_response.text
 
 
 def test_resolve_file_target_accepts_encoded_chinese_paths(tmp_path: Path):

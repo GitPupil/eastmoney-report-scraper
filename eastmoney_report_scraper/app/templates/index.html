@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eastmoney研报分析</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <div class="eyebrow">交易雷达首页 / 研究工作台</div>
+        <h1>Eastmoney研报分析</h1>
+        <div class="muted" id="meta" hidden></div>
+        <div class="status" id="status">准备就绪</div>
+      </div>
+      <div class="actions">
+        <button class="secondary" id="importBtn">导入已有输出</button>
+        <button class="ghost" id="refreshBtn">刷新</button>
+      </div>
+    </header>
+
+    <section class="radar-home" aria-label="交易雷达首页">
+      <article class="radar-main">
+        <div class="radar-title-row">
+          <div>
+            <div class="eyebrow">交易雷达</div>
+            <h2>近期研报信号</h2>
+            <div class="muted">优先扫首次覆盖、多券商共振、覆盖加速和强热点。</div>
+          </div>
+          <div class="radar-stamp" id="radarUpdated">等待刷新</div>
+        </div>
+        <div class="radar-metrics" id="radarMetrics"></div>
+        <div class="radar-list" id="radarList"></div>
+      </article>
+      <aside class="radar-side">
+        <div>
+          <div class="eyebrow">工作台入口</div>
+          <h2>下一步</h2>
+          <div class="quick-links">
+            <a href="#fetchPanel">发起抓取 <span>参数 / 范围</span></a>
+            <a href="#filtersPanel">全局筛选 <span>日期 / 主题</span></a>
+            <a href="#overviewPanel">趋势总览 <span>热点 / 质量</span></a>
+            <a href="#analysisPanel">研究分析 <span>趋势 / 观点</span></a>
+            <a href="#reportsPanel">研报明细 <span>搜索 / 预览</span></a>
+          </div>
+        </div>
+        <div class="radar-focus" id="radarFocus">
+          <div class="muted">导入或刷新后显示当前最值得关注的信号。</div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="grid">
+      <div class="workspace-title">
+        <div>
+          <div class="eyebrow">研究工作台</div>
+          <h2>数据、抓取与深挖</h2>
+        </div>
+        <div class="muted">从雷达信号进入公司、行业、券商和研报原文。</div>
+      </div>
+      <article class="panel wide" id="filtersPanel">
+        <div class="section-head">
+          <div>
+            <h2>全局筛选</h2>
+            <div class="muted">筛选会同步影响 KPI、热点、趋势、观点变化、研究对象和研报明细。</div>
+          </div>
+          <div class="filter-actions">
+            <button class="ghost" id="resetFiltersBtn">重置筛选</button>
+          </div>
+        </div>
+        <div class="global-filters">
+          <label>开始日期<input id="globalStartDate" type="date"></label>
+          <label>结束日期<input id="globalEndDate" type="date"></label>
+          <label>公司<select id="companyFilter"><option value="">全部公司</option></select></label>
+          <label>行业<select id="industryFilter"><option value="">全部行业</option></select></label>
+          <label>券商<select id="brokerFilter"><option value="">全部券商</option></select></label>
+          <label>评级<select id="ratingFilter"><option value="">全部评级</option></select></label>
+          <label>热点等级<select id="hotspotFilter"><option value="">全部热点</option></select></label>
+          <label>优先级<select id="priorityFilter"><option value="">全部优先级</option></select></label>
+          <label>主题<select id="themeFilter"><option value="">全部主题</option></select></label>
+          <label>原因<select id="reasonFilter"><option value="">全部原因</option></select></label>
+          <label>最低分<input id="minScoreFilter" type="number" min="0" max="100" placeholder="signal score"></label>
+          <label>关键词<input id="globalSearch" placeholder="标题 / 摘要 / 主题 / 原因"></label>
+        </div>
+      </article>
+      <article class="panel wide"><div class="kpis" id="kpis"></div></article>
+      <article class="panel wide" id="overviewPanel">
+        <div class="section-head">
+          <div>
+            <h2>趋势总览</h2>
+            <div class="muted">把静态 Dashboard 的高频观察点放到本地 App 首页。</div>
+          </div>
+          <div class="muted" id="dashboardFooter">等待分析数据</div>
+        </div>
+        <div class="chart-grid secondary">
+          <div class="chart-card"><h3>研报数量趋势</h3><div class="chart" id="reportTrendChart"></div></div>
+          <div class="chart-card"><h3>券商扩散趋势</h3><div class="chart" id="brokerTrendChart"></div></div>
+          <div class="chart-card"><h3>行业热度</h3><div class="chart" id="industryHeatChart"></div></div>
+          <div class="chart-card"><h3>主题热度</h3><div class="chart" id="themeHeatChart"></div></div>
+          <div class="chart-card"><h3>热点原因</h3><div class="chart" id="reasonTrendChart"></div></div>
+          <div class="chart-card"><h3>数据质量</h3><div class="chart" id="qualityChart"></div></div>
+          <div class="chart-card"><h3>抽取来源</h3><div class="chart" id="sourceChart"></div></div>
+        </div>
+      </article>
+      <article class="panel wide" id="hotspotsPanel"><h2>近期热点</h2><div class="table-wrap"><table id="hotspots"></table></div></article>
+      <article class="panel wide" id="opinionPanel"><h2>全局观点变化</h2><div class="table-wrap"><table id="globalOpinionTable"></table></div></article>
+      <article class="panel wide" id="analysisPanel">
+        <div class="section-head">
+          <h2>可视化分析</h2>
+          <div class="analysis-tools">
+            <label>对象搜索<input id="analysisSearch" placeholder="公司 / 代码 / 行业"></label>
+            <label>研究对象<select id="analysisEntity"><option value="">加载中</option></select></label>
+            <button class="secondary" id="analysisRefreshBtn">刷新分析</button>
+          </div>
+        </div>
+        <div class="analysis-kpis" id="analysisKpis"></div>
+        <div class="analysis-section-title">核心趋势</div>
+        <div class="chart-grid primary">
+          <div class="chart-card"><h3>覆盖次数趋势</h3><div class="chart" id="analysisCoverageChart"></div></div>
+          <div class="chart-card"><h3>券商扩散趋势</h3><div class="chart" id="analysisBrokerChart"></div></div>
+          <div class="chart-card"><h3>信号评分趋势</h3><div class="chart" id="analysisScoreChart"></div></div>
+        </div>
+        <div class="analysis-section-title">估值与结构</div>
+        <div class="chart-grid secondary">
+          <div class="chart-card"><h3>目标价轨迹</h3><div class="chart" id="analysisTargetChart"></div></div>
+          <div class="chart-card"><h3>EPS 轨迹</h3><div class="chart" id="analysisEpsChart"></div></div>
+          <div class="chart-card"><h3>评级分布</h3><div class="chart" id="analysisRatingChart"></div></div>
+          <div class="chart-card"><h3>等级分布</h3><div class="chart" id="analysisPriorityChart"></div></div>
+          <div class="chart-card"><h3>活跃券商</h3><div class="chart" id="analysisBrokerMix"></div></div>
+          <div class="chart-card"><h3>主题分布</h3><div class="chart" id="analysisThemeMix"></div></div>
+        </div>
+        <div class="mini-table">
+          <h2>评级 / 目标价 / EPS / 等级变化</h2>
+          <div class="table-wrap"><table id="analysisOpinionTable"></table></div>
+        </div>
+        <div class="mini-table">
+          <h2>最新研报</h2>
+          <div class="table-wrap"><table id="analysisLatestReports"></table></div>
+        </div>
+      </article>
+      <article class="panel wide" id="reportsPanel">
+        <div class="section-head">
+          <h2>研报明细</h2>
+          <div class="report-tools">
+            <label>显示数量<select id="reportLimit"><option value="100">100</option><option value="300">300</option><option value="1000">1000</option><option value="0">全部</option></select></label>
+            <label class="search">搜索<input id="reportSearch" placeholder="公司 / 行业 / 券商 / 评级 / 关键词"></label>
+            <button class="secondary" id="reportSearchBtn">搜索</button>
+            <button class="ghost" id="reportClearBtn">清空</button>
+            <div class="pager">
+              <button class="ghost" id="reportPrevBtn">上一页</button>
+              <span id="reportPageInfo">-</span>
+              <button class="ghost" id="reportNextBtn">下一页</button>
+            </div>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="reports"></table></div>
+      </article>
+      <article class="panel wide" id="fetchPanel">
+        <h2>发起抓取</h2>
+        <div class="form">
+          <label>单日日期<input id="date" type="date"></label>
+          <label>区间开始<input id="startDate" type="date"></label>
+          <label>区间结束<input id="endDate" type="date"></label>
+          <label>类型<select id="qtype"><option value="2">全部</option><option value="0">个股研报</option><option value="1">行业研报</option></select></label>
+          <label>股票/代码<input id="stock" placeholder="可逗号分隔"></label>
+          <label>行业<input id="industry" placeholder="可逗号分隔"></label>
+          <label>券商<input id="org" placeholder="可逗号分隔"></label>
+          <label>评级<input id="rating" placeholder="可逗号分隔"></label>
+          <label><span class="field-title">limit<span class="help" tabindex="0" data-tip="每个日期最多抓取多少篇研报；留空表示不限制。选择全部时，会先合并个股和行业列表再应用该限制。">?</span></span><input id="limit" type="number" min="1"></label>
+          <label><span class="field-title">并发<span class="help" tabindex="0" data-tip="同时抓取详情页的 worker 数；数值越大越快，但请求压力也更高。">?</span></span><input id="concurrency" type="number" min="1" value="1"></label>
+          <label><span class="field-title">jitter<span class="help" tabindex="0" data-tip="每次详情请求额外增加 0 到该数值之间的随机等待秒数，适合批量抓取时放缓节奏。">?</span></span><input id="jitter" type="number" min="0" step="0.1" value="0"></label>
+          <label>&nbsp;<button id="runBtn">开始</button></label>
+        </div>
+      </article>
+      <article class="panel wide" id="tasksPanel"><h2>近期抓取</h2><div class="table-wrap"><table id="runs"></table></div></article>
+    </section>
+  </main>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

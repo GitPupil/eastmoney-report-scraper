@@ -86,7 +86,7 @@ The implementation keeps `scripts/fetch_reports.py` as a compatibility entrypoin
 - `eastmoney_report_scraper/hotspots.py`
 - `eastmoney_report_scraper/dashboard.py`
 - `eastmoney_report_scraper/storage/`
-- `eastmoney_report_scraper/app/`
+- `eastmoney_report_scraper/app/` - Local App routes, templates, and static assets
 - `eastmoney_report_scraper/config.py`
 - `eastmoney_report_scraper/cli.py`
 
@@ -121,6 +121,20 @@ Before tagging a release:
 - Add a dated section to `CHANGELOG.md`.
 - Run the smoke validation commands.
 - Push to `main` and confirm CI is green.
+
+## Local App Merge Checklist
+
+Before merging `codex/local-app-mvp` back to `main`:
+
+- Confirm README and SKILL both say OpenClaw/agent defaults to CLI and local users default to Local App.
+- Confirm `start_local_app.bat` still starts the Windows local app flow.
+- Confirm `start_local_app.sh` explains the macOS/Linux Python/Homebrew path clearly.
+- Run `python -B -m pytest -q -p no:cacheprovider`.
+- Run `python -m ruff check . --no-cache`.
+- Run `python -m py_compile scripts/fetch_reports.py`.
+- Run `python scripts/fetch_reports.py --help`.
+- Confirm GitHub CI is green on the pull request.
+- Merge back to `main` after checks pass; do not keep long-lived divergent app and OpenClaw branches.
 
 ## Recommended Next Engineering Steps
 

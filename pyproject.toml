@@ -52,6 +52,13 @@ eastmoney-report-scraper = "eastmoney_report_scraper.cli:main"
 [tool.setuptools]
 py-modules = []
 
+[tool.setuptools.package-data]
+eastmoney_report_scraper = [
+  "app/templates/*.html",
+  "app/static/*.css",
+  "app/static/*.js",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 exclude = ["eastmoney_reports*"]

@@ -102,6 +102,14 @@ macOS / Linux 脚本会创建项目内 `.venv`，安装 `.[app]` 依赖，导入
 - 页面中部：公司/行业可视化分析、观点变化、研报明细。
 - 页面底部：发起抓取、近期抓取记录。
 
+界面截图后续放在 `docs/assets/`：
+
+- `docs/assets/local-app-radar.png`：交易雷达首页。
+- `docs/assets/local-app-analysis.png`：公司/行业可视化分析。
+- `docs/assets/local-app-preview.png`：Markdown 预览页。
+
+当前仓库不放占位图；等有真实截图后再在这里嵌入图片。
+
 启动 App 的终端窗口需要保持开启。关闭终端后，本地 App 服务也会停止。
 
 ## 第一次抓取研报
@@ -495,7 +503,7 @@ Local App MVP 支持：
 │   ├── hotspots.py     # 公司/行业近期热度和覆盖变化识别
 │   ├── dashboard.py    # 离线静态 HTML Dashboard
 │   ├── storage/        # 本地 SQLite 导入和查询
-│   ├── app/            # 本地 Web App
+│   ├── app/            # 本地 Web App 路由、模板和静态资源
 │   ├── config.py       # 本地 App 配置
 │   └── cli.py          # CLI 参数与主流程编排
 ├── scripts/
