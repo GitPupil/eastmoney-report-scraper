@@ -31,6 +31,24 @@ metadata:
 
 项目也提供可选 Local App，但 OpenClaw/agent 默认仍使用 CLI workflow；除非用户明确要求启动本地 Web App，否则不要使用 `eastmoney-report-scraper app`。
 
+## Entry Policy
+
+这个项目有两个入口，必须按场景选择：
+
+| 场景 | 使用入口 | 说明 |
+|---|---|---|
+| OpenClaw / Codex / agent 自动执行 | `python3 {baseDir}/scripts/fetch_reports.py ...` | 默认入口。用于抓取、续跑、重算热点、生成 Markdown/CSV/JSONL 和静态 `DASHBOARD.html`。 |
+| 本地人类用户交互使用 | `start_local_app.bat` / `start_local_app.sh` 或 `eastmoney-report-scraper app ...` | 仅在用户明确要求“打开本地 App / 本地 Web UI / 一键启动”时使用。 |
+| 已安装包后的命令行使用 | `eastmoney-report-scraper ...` | 与脚本入口等价，但 agent 默认仍优先兼容入口。 |
+
+重要规则：
+
+- 默认不要启动长期运行的本地 Web 服务。
+- 用户只说“抓研报、重算热点、更新 dashboard、生成文件、给我分析”，都走 CLI workflow。
+- 用户明确说“打开本地版、本地 App、Web UI、浏览器工作台、一键启动”时，才使用 Local App 入口。
+- OpenClaw workflow 的可视化需求优先用 `--dashboard-only` 生成或刷新静态 `DASHBOARD.html`，而不是启动 Local App。
+- Local App 与 CLI 共用同一个 `eastmoney_reports/` 输出目录；`eastmoney.db` 只是本地查询缓存，可以通过 `import-existing` 从 CSV/JSONL 重新生成。
+
 ## When To Use
 
 适合处理：

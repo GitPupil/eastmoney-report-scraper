@@ -15,6 +15,7 @@
 ## 目录
 
 - [功能亮点](#功能亮点)
+- [入口怎么选](#入口怎么选)
 - [一键启动本地 App](#一键启动本地-app)
 - [第一次抓取研报](#第一次抓取研报)
 - [输出文件怎么看](#输出文件怎么看)
@@ -38,6 +39,18 @@
 - 断点续跑：已有文件不会重复抓，弱抽取和失败项可以单独重试。
 - 输出完整：Markdown、CSV/XLSX、JSON、日报、主题/行业归纳、共识简报。
 - 轻量模式：支持环境检查、只看列表、只重算热点、只重建 Dashboard。
+
+## 入口怎么选
+
+这个项目有两个入口，但它们使用同一套数据和输出目录，不是两个独立项目。
+
+| 你是谁 / 场景 | 推荐入口 | 适合做什么 |
+|---|---|---|
+| 普通本地用户 | `start_local_app.bat` / `start_local_app.sh` | 打开浏览器工作台，点按钮抓取、筛选、看热点、预览 Markdown |
+| OpenClaw / Codex / agent | `python scripts/fetch_reports.py ...` | 自动抓取、续跑、重算热点、生成静态 `DASHBOARD.html` 和 Markdown/CSV/JSONL 输出 |
+| 熟悉命令行的用户 | `eastmoney-report-scraper ...` | 用安装后的 CLI 运行同样的抓取和分析流程 |
+
+OpenClaw 或其他 agent 默认应该走 CLI workflow，不需要启动本地 Web App。Local App 主要给人在自己电脑上交互使用；它会读取同一个 `eastmoney_reports/` 输出目录，并把已有 CSV/JSONL 导入 `eastmoney.db` 作为本地查询缓存。`eastmoney.db` 不是唯一数据源，删掉后可以重新导入生成。
 
 ## 一键启动本地 App
 

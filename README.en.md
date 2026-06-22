@@ -29,6 +29,18 @@ A research-oriented Eastmoney report scraper. It collects stock and industry res
 - Lightweight modes: `--doctor`, `--dry-run`, `--list-only`, `--hotspots-only`, and `--dashboard-only`.
 - 0.5.0 adds the Local App MVP; 0.4.0 added the visual dashboard.
 
+## Which Entry Should I Use?
+
+The project has two user-facing entry paths, but they share the same output directory and data files.
+
+| Scenario | Recommended entry | Best for |
+|---|---|---|
+| Local human user | `start_local_app.bat` / `start_local_app.sh` | Open the browser workspace, start fetches, filter reports, inspect hotspots, and preview Markdown |
+| OpenClaw / Codex / agent | `python scripts/fetch_reports.py ...` | Automated fetches, resume runs, hotspot rebuilds, static `DASHBOARD.html`, Markdown/CSV/JSONL outputs |
+| CLI user after package install | `eastmoney-report-scraper ...` | Run the same workflow through the installed command |
+
+Agents should default to the CLI workflow and should not start the Local App unless the user explicitly asks for the local Web UI. The Local App reads the same `eastmoney_reports/` output directory and imports CSV/JSONL files into `eastmoney.db` as a local query cache. The SQLite database is not the only source of truth and can be rebuilt with `import-existing`.
+
 ## Quick Start
 
 ```bash
