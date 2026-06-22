@@ -340,7 +340,35 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'id="radarList"' in _INDEX_HTML
     assert 'id="radarFocus"' in _INDEX_HTML
     assert "function renderRadar" in _INDEX_HTML
-    assert "renderRadar(health, hotspots)" in _INDEX_HTML
+    assert "renderRadar(hotspots, reports)" in _INDEX_HTML
+    assert 'id="filtersPanel"' in _INDEX_HTML
+    assert 'id="globalStartDate"' in _INDEX_HTML
+    assert 'id="companyFilter"' in _INDEX_HTML
+    assert 'id="industryFilter"' in _INDEX_HTML
+    assert 'id="brokerFilter"' in _INDEX_HTML
+    assert 'id="ratingFilter"' in _INDEX_HTML
+    assert 'id="hotspotFilter"' in _INDEX_HTML
+    assert 'id="priorityFilter"' in _INDEX_HTML
+    assert 'id="themeFilter"' in _INDEX_HTML
+    assert 'id="reasonFilter"' in _INDEX_HTML
+    assert 'id="minScoreFilter"' in _INDEX_HTML
+    assert 'id="globalSearch"' in _INDEX_HTML
+    assert 'id="resetFiltersBtn"' in _INDEX_HTML
+    assert 'id="overviewPanel"' in _INDEX_HTML
+    assert 'id="reportTrendChart"' in _INDEX_HTML
+    assert 'id="brokerTrendChart"' in _INDEX_HTML
+    assert 'id="industryHeatChart"' in _INDEX_HTML
+    assert 'id="themeHeatChart"' in _INDEX_HTML
+    assert 'id="reasonTrendChart"' in _INDEX_HTML
+    assert 'id="qualityChart"' in _INDEX_HTML
+    assert 'id="sourceChart"' in _INDEX_HTML
+    assert 'id="globalOpinionTable"' in _INDEX_HTML
+    assert "function filteredDashboardData" in _INDEX_HTML
+    assert "function renderDashboardViews" in _INDEX_HTML
+    assert "function renderOverviewCharts" in _INDEX_HTML
+    assert "function renderGlobalOpinion" in _INDEX_HTML
+    assert "api(\"/api/reports" not in _INDEX_HTML
+    assert "api(\"/api/hotspots" not in _INDEX_HTML
     assert 'href="#analysisPanel"' in _INDEX_HTML
     assert '<option value="2">全部</option>' in _INDEX_HTML
     assert 'id="status"' in _INDEX_HTML
@@ -362,6 +390,7 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'id="analysisRatingChart"' in _INDEX_HTML
     assert 'id="analysisPriorityChart"' in _INDEX_HTML
     assert 'id="analysisOpinionTable"' in _INDEX_HTML
+    assert 'id="analysisLatestReports"' in _INDEX_HTML
     assert "function loadAnalysis" in _INDEX_HTML
     assert "function filteredAnalysisEntities" in _INDEX_HTML
     assert 'api("/api/dashboard-data")' in _INDEX_HTML

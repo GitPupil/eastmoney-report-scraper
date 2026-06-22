@@ -53,7 +53,18 @@ eastmoney-report-scraper import-existing --output-dir ./eastmoney_reports
 eastmoney-report-scraper app --output-dir ./eastmoney_reports --open-browser
 ```
 
-On Windows, double-click `start_local_app.bat` from the project folder. If Python is missing, the script tries to install Python 3.12 with `winget`; if `winget` is unavailable, it prints the manual download link.
+You can also use one-click launch scripts:
+
+```bash
+# Windows: double-click start_local_app.bat
+
+# macOS / Linux:
+chmod +x start_local_app.sh
+./start_local_app.sh
+# Or run: bash start_local_app.sh
+```
+
+The Windows script tries to install Python 3.12 with `winget` when Python is missing. The macOS/Linux script creates a project-local `.venv`, installs `.[app]`, imports existing outputs, and opens the browser. On macOS, if Python is missing and Homebrew is available, it tries to install Python with Homebrew.
 
 The local app can start fetch runs, import existing outputs, browse report details, and visualize company or industry trends including coverage, broker diffusion, signal scores, target price/EPS timelines, rating distribution, priority-bucket distribution, and continuous opinion changes from the same broker.
 
@@ -155,6 +166,17 @@ The Local App is an optional browser workspace. It keeps the CLI/OpenClaw workfl
 pip install ".[app]"
 eastmoney-report-scraper import-existing --output-dir ./eastmoney_reports
 eastmoney-report-scraper app --output-dir ./eastmoney_reports --host 127.0.0.1 --port 8765 --open-browser
+```
+
+One-click launch:
+
+```bash
+# Windows: double-click
+start_local_app.bat
+
+# macOS / Linux
+chmod +x start_local_app.sh
+./start_local_app.sh
 ```
 
 Open:

@@ -309,8 +309,12 @@ _INDEX_HTML = """<!doctype html>
     .wide { grid-column: span 12; }
     .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
     .kpi { background: #fbfaf7; border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-height: 74px; }
+    .kpi .label { color: var(--muted); font-size: 12px; font-weight: 700; }
     .kpi .value { margin-top: 6px; font-size: 24px; font-weight: 750; }
+    .kpi .sub { margin-top: 3px; color: var(--muted); font-size: 12px; }
     .form { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; }
+    .global-filters { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; align-items: end; }
+    .filter-actions { display: flex; gap: 8px; align-items: end; }
     label { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 650; }
     input, select, button { height: 36px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
     input, select { padding: 0 10px; background: #fff; color: var(--text); }
@@ -329,6 +333,14 @@ _INDEX_HTML = """<!doctype html>
     .pill { display: inline-flex; padding: 2px 7px; border-radius: 999px; background: #eee8dc; font-size: 12px; font-weight: 650; }
     .pill.good { background: #dcfce7; color: #166534; }
     .pill.bad { background: #ffe4e6; color: #9f1239; }
+    .pill.strong, .pill.hot { background: #ffe4e6; color: #9f1239; }
+    .pill.watch { background: #fef3c7; color: #92400e; }
+    .pill.a, .pill.up { background: #dcfce7; color: #166534; }
+    .pill.b, .pill.flat { background: #e0f2fe; color: #075985; }
+    .pill.down { background: #fee2e2; color: #991b1b; }
+    .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .summary { max-width: 320px; color: #33404a; line-height: 1.45; }
+    .link-button { height: 28px; padding: 0 9px; border-color: var(--line); background: #fff; color: var(--blue); }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; }
     .status { margin-top: 8px; min-height: 18px; color: var(--muted); font-size: 12px; }
     .status.error { color: var(--rose); }
@@ -360,7 +372,8 @@ _INDEX_HTML = """<!doctype html>
     .empty { display: flex; align-items: center; justify-content: center; min-height: 80px; color: var(--muted); }
     .mini-table { margin-top: 12px; }
     .mini-table .table-wrap { max-height: 260px; }
-    @media (max-width: 900px) { .panel { grid-column: span 12; } .form, .kpis, .radar-metrics { grid-template-columns: repeat(2, 1fr); } .radar-home, .radar-list { grid-template-columns: 1fr; } header, .radar-title-row, .workspace-title { align-items: flex-start; flex-direction: column; } }
+    @media (max-width: 1100px) { .global-filters { grid-template-columns: repeat(3, minmax(120px, 1fr)); } }
+    @media (max-width: 900px) { .panel { grid-column: span 12; } .form, .kpis, .radar-metrics { grid-template-columns: repeat(2, 1fr); } .global-filters { grid-template-columns: repeat(2, minmax(120px, 1fr)); } .radar-home, .radar-list { grid-template-columns: 1fr; } header, .radar-title-row, .workspace-title { align-items: flex-start; flex-direction: column; } }
     @media (max-width: 900px) { .section-head { flex-direction: column; } .report-tools, .analysis-tools { justify-content: flex-start; width: 100%; } .report-tools label, .analysis-tools label { flex: 1 1 160px; } .report-tools .search { flex-basis: 100%; } .analysis-kpis { grid-template-columns: repeat(2, 1fr); } .chart-grid, .chart-grid.secondary { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -398,6 +411,8 @@ _INDEX_HTML = """<!doctype html>
           <h2>下一步</h2>
           <div class="quick-links">
             <a href="#fetchPanel">发起抓取 <span>参数 / 范围</span></a>
+            <a href="#filtersPanel">全局筛选 <span>日期 / 主题</span></a>
+            <a href="#overviewPanel">趋势总览 <span>热点 / 质量</span></a>
             <a href="#analysisPanel">研究分析 <span>趋势 / 观点</span></a>
             <a href="#reportsPanel">研报明细 <span>搜索 / 预览</span></a>
           </div>
@@ -416,26 +431,52 @@ _INDEX_HTML = """<!doctype html>
         </div>
         <div class="muted">从雷达信号进入公司、行业、券商和研报原文。</div>
       </div>
-      <article class="panel wide"><div class="kpis" id="kpis"></div></article>
-      <article class="panel wide" id="fetchPanel">
-        <h2>发起抓取</h2>
-        <div class="form">
-          <label>单日日期<input id="date" type="date"></label>
-          <label>区间开始<input id="startDate" type="date"></label>
-          <label>区间结束<input id="endDate" type="date"></label>
-          <label>类型<select id="qtype"><option value="2">全部</option><option value="0">个股研报</option><option value="1">行业研报</option></select></label>
-          <label>股票/代码<input id="stock" placeholder="可逗号分隔"></label>
-          <label>行业<input id="industry" placeholder="可逗号分隔"></label>
-          <label>券商<input id="org" placeholder="可逗号分隔"></label>
-          <label>评级<input id="rating" placeholder="可逗号分隔"></label>
-          <label><span class="field-title">limit<span class="help" tabindex="0" data-tip="每个日期最多抓取多少篇研报；留空表示不限制。选择全部时，会先合并个股和行业列表再应用该限制。">?</span></span><input id="limit" type="number" min="1"></label>
-          <label><span class="field-title">并发<span class="help" tabindex="0" data-tip="同时抓取详情页的 worker 数；数值越大越快，但请求压力也更高。">?</span></span><input id="concurrency" type="number" min="1" value="1"></label>
-          <label><span class="field-title">jitter<span class="help" tabindex="0" data-tip="每次详情请求额外增加 0 到该数值之间的随机等待秒数，适合批量抓取时放缓节奏。">?</span></span><input id="jitter" type="number" min="0" step="0.1" value="0"></label>
-          <label>&nbsp;<button id="runBtn">开始</button></label>
+      <article class="panel wide" id="filtersPanel">
+        <div class="section-head">
+          <div>
+            <h2>全局筛选</h2>
+            <div class="muted">筛选会同步影响 KPI、热点、趋势、观点变化、研究对象和研报明细。</div>
+          </div>
+          <div class="filter-actions">
+            <button class="ghost" id="resetFiltersBtn">重置筛选</button>
+          </div>
+        </div>
+        <div class="global-filters">
+          <label>开始日期<input id="globalStartDate" type="date"></label>
+          <label>结束日期<input id="globalEndDate" type="date"></label>
+          <label>公司<select id="companyFilter"><option value="">全部公司</option></select></label>
+          <label>行业<select id="industryFilter"><option value="">全部行业</option></select></label>
+          <label>券商<select id="brokerFilter"><option value="">全部券商</option></select></label>
+          <label>评级<select id="ratingFilter"><option value="">全部评级</option></select></label>
+          <label>热点等级<select id="hotspotFilter"><option value="">全部热点</option></select></label>
+          <label>优先级<select id="priorityFilter"><option value="">全部优先级</option></select></label>
+          <label>主题<select id="themeFilter"><option value="">全部主题</option></select></label>
+          <label>原因<select id="reasonFilter"><option value="">全部原因</option></select></label>
+          <label>最低分<input id="minScoreFilter" type="number" min="0" max="100" placeholder="signal score"></label>
+          <label>关键词<input id="globalSearch" placeholder="标题 / 摘要 / 主题 / 原因"></label>
         </div>
       </article>
-      <article class="panel" id="tasksPanel"><h2>近期任务</h2><div class="table-wrap"><table id="runs"></table></div></article>
-      <article class="panel" id="hotspotsPanel"><h2>近期热点</h2><div class="table-wrap"><table id="hotspots"></table></div></article>
+      <article class="panel wide"><div class="kpis" id="kpis"></div></article>
+      <article class="panel wide" id="overviewPanel">
+        <div class="section-head">
+          <div>
+            <h2>趋势总览</h2>
+            <div class="muted">把静态 Dashboard 的高频观察点放到本地 App 首页。</div>
+          </div>
+          <div class="muted" id="dashboardFooter">等待分析数据</div>
+        </div>
+        <div class="chart-grid secondary">
+          <div class="chart-card"><h3>研报数量趋势</h3><div class="chart" id="reportTrendChart"></div></div>
+          <div class="chart-card"><h3>券商扩散趋势</h3><div class="chart" id="brokerTrendChart"></div></div>
+          <div class="chart-card"><h3>行业热度</h3><div class="chart" id="industryHeatChart"></div></div>
+          <div class="chart-card"><h3>主题热度</h3><div class="chart" id="themeHeatChart"></div></div>
+          <div class="chart-card"><h3>热点原因</h3><div class="chart" id="reasonTrendChart"></div></div>
+          <div class="chart-card"><h3>数据质量</h3><div class="chart" id="qualityChart"></div></div>
+          <div class="chart-card"><h3>抽取来源</h3><div class="chart" id="sourceChart"></div></div>
+        </div>
+      </article>
+      <article class="panel wide" id="hotspotsPanel"><h2>近期热点</h2><div class="table-wrap"><table id="hotspots"></table></div></article>
+      <article class="panel wide" id="opinionPanel"><h2>全局观点变化</h2><div class="table-wrap"><table id="globalOpinionTable"></table></div></article>
       <article class="panel wide" id="analysisPanel">
         <div class="section-head">
           <h2>可视化分析</h2>
@@ -465,6 +506,10 @@ _INDEX_HTML = """<!doctype html>
           <h2>评级 / 目标价 / EPS / 等级变化</h2>
           <div class="table-wrap"><table id="analysisOpinionTable"></table></div>
         </div>
+        <div class="mini-table">
+          <h2>最新研报</h2>
+          <div class="table-wrap"><table id="analysisLatestReports"></table></div>
+        </div>
       </article>
       <article class="panel wide" id="reportsPanel">
         <div class="section-head">
@@ -483,13 +528,40 @@ _INDEX_HTML = """<!doctype html>
         </div>
         <div class="table-wrap"><table id="reports"></table></div>
       </article>
+      <article class="panel wide" id="fetchPanel">
+        <h2>发起抓取</h2>
+        <div class="form">
+          <label>单日日期<input id="date" type="date"></label>
+          <label>区间开始<input id="startDate" type="date"></label>
+          <label>区间结束<input id="endDate" type="date"></label>
+          <label>类型<select id="qtype"><option value="2">全部</option><option value="0">个股研报</option><option value="1">行业研报</option></select></label>
+          <label>股票/代码<input id="stock" placeholder="可逗号分隔"></label>
+          <label>行业<input id="industry" placeholder="可逗号分隔"></label>
+          <label>券商<input id="org" placeholder="可逗号分隔"></label>
+          <label>评级<input id="rating" placeholder="可逗号分隔"></label>
+          <label><span class="field-title">limit<span class="help" tabindex="0" data-tip="每个日期最多抓取多少篇研报；留空表示不限制。选择全部时，会先合并个股和行业列表再应用该限制。">?</span></span><input id="limit" type="number" min="1"></label>
+          <label><span class="field-title">并发<span class="help" tabindex="0" data-tip="同时抓取详情页的 worker 数；数值越大越快，但请求压力也更高。">?</span></span><input id="concurrency" type="number" min="1" value="1"></label>
+          <label><span class="field-title">jitter<span class="help" tabindex="0" data-tip="每次详情请求额外增加 0 到该数值之间的随机等待秒数，适合批量抓取时放缓节奏。">?</span></span><input id="jitter" type="number" min="0" step="0.1" value="0"></label>
+          <label>&nbsp;<button id="runBtn">开始</button></label>
+        </div>
+      </article>
+      <article class="panel wide" id="tasksPanel"><h2>近期抓取</h2><div class="table-wrap"><table id="runs"></table></div></article>
     </section>
   </main>
   <script>
     const $ = (id) => document.getElementById(id);
+    const levelRank = { STRONG: 0, HOT: 1, WATCH: 2 };
+    const filterIds = [
+      "globalStartDate", "globalEndDate", "companyFilter", "industryFilter", "brokerFilter",
+      "ratingFilter", "hotspotFilter", "priorityFilter", "themeFilter", "reasonFilter",
+      "minScoreFilter", "globalSearch"
+    ];
     let reportPage = 1;
     let fetchTuningTouched = false;
-    let analysisData = null;
+    let analysisData = { reports: [], hotspots: [], entityDrilldowns: [], opinionTrends: [], meta: {} };
+    let latestHealth = null;
+    let latestRuns = { items: [] };
+    let filtersInitialized = false;
     const api = async (path, options = {}) => {
       const response = await fetch(path, options);
       if (!response.ok) throw new Error(await response.text());
@@ -510,9 +582,20 @@ _INDEX_HTML = """<!doctype html>
       const safe = imported || {};
       return `研报 ${safe.reports || 0}，热点 ${safe.hotspots || 0}，覆盖历史 ${safe.coverage_history || 0}，manifest ${safe.manifests || 0}`;
     }
-    function pill(status) {
-      const cls = status === "done" || status === "ok" || status === "STRONG" ? "good" : status === "failed" || status === "error" ? "bad" : "";
-      return `<span class="pill ${cls}">${esc(status || "-")}</span>`;
+    function pill(value) {
+      const lower = String(value || "").toLowerCase();
+      const cls = lower === "done" || lower === "ok" ? "good"
+        : lower === "failed" || lower === "error" ? "bad"
+        : lower === "strong" ? "strong"
+        : lower === "hot" ? "hot"
+        : lower === "watch" ? "watch"
+        : lower === "a" ? "a"
+        : lower === "b" ? "b"
+        : lower === "up" ? "up"
+        : lower === "down" ? "down"
+        : lower === "flat" ? "flat"
+        : "";
+      return `<span class="pill ${cls}">${esc(value || "-")}</span>`;
     }
     function numberField(row, names) {
       for (const name of names) {
@@ -539,8 +622,221 @@ _INDEX_HTML = """<!doctype html>
       };
       return labels[code] || code;
     }
-    function renderRadar(health, hotspots) {
-      const items = (hotspots && hotspots.items) || [];
+    function uniq(values) {
+      return [...new Set((values || []).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b, "zh-CN"));
+    }
+    function optionList(values, label) {
+      return [`<option value="">全部${label}</option>`, ...values.map((value) => `<option value="${esc(value)}">${esc(value)}</option>`)].join("");
+    }
+    function setSelectOptions(id, values, label) {
+      const el = $(id);
+      const current = el.value;
+      const options = uniq(values);
+      el.innerHTML = optionList(options, label);
+      if (current && options.includes(current)) el.value = current;
+    }
+    function allReports() {
+      return (analysisData && analysisData.reports) || [];
+    }
+    function allHotspots() {
+      return (analysisData && analysisData.hotspots) || [];
+    }
+    function allEntities() {
+      return (analysisData && analysisData.entityDrilldowns) || [];
+    }
+    function dashboardDates() {
+      return uniq(allReports().map((row) => row.date));
+    }
+    function populateGlobalFilters() {
+      const reports = allReports();
+      const hotspots = allHotspots();
+      const dates = dashboardDates();
+      if (dates.length && (!filtersInitialized || (!$("globalStartDate").value && !$("globalEndDate").value))) {
+        $("globalStartDate").value = dates[0];
+        $("globalEndDate").value = dates[dates.length - 1];
+      }
+      setSelectOptions("companyFilter", [
+        ...reports.map((row) => row.stockName || row.stockCode),
+        ...hotspots.filter((row) => row.entityType === "company").map((row) => row.entityName),
+      ], "公司");
+      setSelectOptions("industryFilter", [
+        ...reports.map((row) => row.industryName),
+        ...hotspots.map((row) => row.industryName || (row.entityType === "industry" ? row.entityName : "")),
+      ], "行业");
+      setSelectOptions("brokerFilter", reports.map((row) => row.orgName), "券商");
+      setSelectOptions("ratingFilter", reports.map((row) => row.rating), "评级");
+      setSelectOptions("hotspotFilter", hotspots.map((row) => row.hotspotLevel), "热点");
+      setSelectOptions("priorityFilter", reports.map((row) => row.priorityBucket), "优先级");
+      setSelectOptions("themeFilter", reports.flatMap((row) => row.themeTags || []), "主题");
+      setSelectOptions("reasonFilter", hotspots.flatMap((row) => reasonCodes(row)), "原因");
+      filtersInitialized = true;
+    }
+    function readFilters() {
+      return {
+        startDate: $("globalStartDate").value,
+        endDate: $("globalEndDate").value,
+        company: $("companyFilter").value,
+        industry: $("industryFilter").value,
+        broker: $("brokerFilter").value,
+        rating: $("ratingFilter").value,
+        hotspot: $("hotspotFilter").value,
+        priority: $("priorityFilter").value,
+        theme: $("themeFilter").value,
+        reason: $("reasonFilter").value,
+        minScore: Number($("minScoreFilter").value || 0),
+        search: $("globalSearch").value.trim().toLowerCase(),
+      };
+    }
+    function inDate(date, filters) {
+      if (!date) return true;
+      if (filters.startDate && date < filters.startDate) return false;
+      if (filters.endDate && date > filters.endDate) return false;
+      return true;
+    }
+    function includesText(row, text) {
+      if (!text) return true;
+      const haystack = [
+        row.stockName, row.stockCode, row.industryName, row.title, row.orgName, row.rating, row.summary,
+        ...(row.themeTags || []), ...(row.scoreReasons || []), ...(row.reasonCodes || []), ...(row.reasons || [])
+      ].join(" ").toLowerCase();
+      return haystack.includes(text);
+    }
+    function entityKeyForReport(row) {
+      const entities = allEntities();
+      const company = entities.find((entity) => entity.entityType === "company" && ((row.stockCode && entity.stockCode === row.stockCode) || entity.label === row.stockName));
+      if (company) return company.entityKey;
+      const industry = entities.find((entity) => entity.entityType === "industry" && entity.label === row.industryName);
+      return industry ? industry.entityKey : "";
+    }
+    function entityKeysForReport(row) {
+      const entities = allEntities();
+      const keys = [];
+      const company = entities.find((entity) => entity.entityType === "company" && ((row.stockCode && entity.stockCode === row.stockCode) || entity.label === row.stockName));
+      const industry = entities.find((entity) => entity.entityType === "industry" && entity.label === row.industryName);
+      if (company) keys.push(company.entityKey);
+      if (industry) keys.push(industry.entityKey);
+      return keys;
+    }
+    function entityKeyForHotspot(row) {
+      const entities = allEntities();
+      const company = entities.find((entity) => entity.entityType === "company" && row.entityType === "company" && ((row.stockCode && entity.stockCode === row.stockCode) || entity.label === row.entityName));
+      if (company) return company.entityKey;
+      const industry = entities.find((entity) => entity.entityType === "industry" && (entity.label === row.entityName || entity.label === row.industryName));
+      return industry ? industry.entityKey : "";
+    }
+    function entityKeyForOpinion(row) {
+      const entities = allEntities();
+      const company = entities.find((entity) => entity.entityType === "company" && ((row.stockCode && entity.stockCode === row.stockCode) || entity.label === row.stockName));
+      if (company) return company.entityKey;
+      const industry = entities.find((entity) => entity.entityType === "industry" && (entity.label === row.industryName || entity.label === row.stockName));
+      return industry ? industry.entityKey : "";
+    }
+    function reportMatches(row, filters) {
+      if (!inDate(row.date, filters)) return false;
+      if (!includesText(row, filters.search)) return false;
+      if (filters.company && row.stockName !== filters.company && row.stockCode !== filters.company) return false;
+      if (filters.industry && row.industryName !== filters.industry) return false;
+      if (filters.broker && row.orgName !== filters.broker) return false;
+      if (filters.rating && row.rating !== filters.rating) return false;
+      if (filters.priority && row.priorityBucket !== filters.priority) return false;
+      if (filters.theme && !(row.themeTags || []).includes(filters.theme)) return false;
+      if (Number(row.signalScore || 0) < filters.minScore) return false;
+      if (filters.hotspot || filters.reason) {
+        const keys = new Set(entityKeysForReport(row));
+        const matchedHotspot = allHotspots().some((hotspot) => {
+          const key = entityKeyForHotspot(hotspot);
+          return key && keys.has(key)
+            && (!filters.hotspot || hotspot.hotspotLevel === filters.hotspot)
+            && (!filters.reason || reasonCodes(hotspot).includes(filters.reason));
+        });
+        if (!matchedHotspot) return false;
+      }
+      return true;
+    }
+    function hotspotMatches(row, filters, reportKeys) {
+      const directText = !filters.search || includesText(row, filters.search);
+      if (!inDate(row.latestPublishDate || row.latestDate, filters)) return false;
+      if (!directText) return false;
+      if (filters.company && row.entityName !== filters.company && row.stockCode !== filters.company) return false;
+      if (filters.industry && row.industryName !== filters.industry && row.entityName !== filters.industry) return false;
+      if (filters.hotspot && row.hotspotLevel !== filters.hotspot) return false;
+      if (filters.reason && !reasonCodes(row).includes(filters.reason)) return false;
+      const needsReportContext = Boolean(filters.broker || filters.rating || filters.priority || filters.theme || filters.minScore);
+      if (needsReportContext) {
+        const key = entityKeyForHotspot(row);
+        if (!key || !reportKeys.has(key)) return false;
+      }
+      return true;
+    }
+    function opinionMatches(row, filters, reportKeys) {
+      const haystack = [row.stockName, row.stockCode, row.industryName, row.orgName, row.ratingChange, row.latestRating, row.previousRating].join(" ").toLowerCase();
+      if (!inDate(row.latestDate, filters)) return false;
+      if (filters.search && !haystack.includes(filters.search)) return false;
+      if (filters.company && row.stockName !== filters.company && row.stockCode !== filters.company) return false;
+      if (filters.industry && row.industryName !== filters.industry) return false;
+      if (filters.broker && row.orgName !== filters.broker) return false;
+      const needsReportContext = Boolean(filters.rating || filters.priority || filters.theme || filters.hotspot || filters.reason || filters.minScore);
+      if (needsReportContext) {
+        const key = entityKeyForOpinion(row);
+        if (!key || !reportKeys.has(key)) return false;
+      }
+      return true;
+    }
+    function filteredDashboardData() {
+      const filters = readFilters();
+      const reports = allReports().filter((row) => reportMatches(row, filters));
+      const reportKeys = new Set(reports.flatMap((row) => entityKeysForReport(row)));
+      const hotspots = allHotspots().filter((row) => hotspotMatches(row, filters, reportKeys));
+      const opinions = ((analysisData && analysisData.opinionTrends) || []).filter((row) => opinionMatches(row, filters, reportKeys));
+      return { filters, reports, hotspots, opinions, reportKeys };
+    }
+    function countUnique(rows, getter) {
+      return new Set((rows || []).map(getter).filter(Boolean)).size;
+    }
+    function countBy(rows, getter, limit = 12) {
+      const counter = {};
+      (rows || []).forEach((row) => {
+        const value = getter(row);
+        if (!value) return;
+        counter[value] = (counter[value] || 0) + 1;
+      });
+      return Object.keys(counter).map((name) => ({ name, count: counter[name] })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "zh-CN")).slice(0, limit);
+    }
+    function countTokens(rows, getter, limit = 12) {
+      const counter = {};
+      (rows || []).forEach((row) => (getter(row) || []).forEach((value) => {
+        if (!value) return;
+        counter[value] = (counter[value] || 0) + 1;
+      }));
+      return Object.keys(counter).map((name) => ({ name, count: counter[name] })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "zh-CN")).slice(0, limit);
+    }
+    function seriesByDay(rows, getDate, getKey) {
+      const grouped = {};
+      (rows || []).forEach((row) => {
+        const date = getDate(row);
+        if (!date) return;
+        if (!grouped[date]) grouped[date] = new Set();
+        grouped[date].add(getKey ? getKey(row) : `${date}-${grouped[date].size}`);
+      });
+      return Object.keys(grouped).sort().map((date) => ({ name: date.slice(5), date, count: grouped[date].size }));
+    }
+    function renderKpis(reports, hotspots) {
+      const weak = reports.filter((row) => row.status === "weak" || row.status === "error").length;
+      const ab = reports.filter((row) => ["A", "B"].includes(row.priorityBucket)).length;
+      const strong = hotspots.filter((row) => row.hotspotLevel === "STRONG" || row.hotspotLevel === "HOT").length;
+      $("kpis").innerHTML = [
+        ["研报", reports.length, "筛选后样本"],
+        ["公司", countUnique(reports, (row) => row.stockCode || row.stockName), "覆盖标的"],
+        ["行业", countUnique(reports, (row) => row.industryName), "覆盖行业"],
+        ["券商", countUnique(reports, (row) => row.orgName), "参与机构"],
+        ["热点", hotspots.length, `HOT/STRONG ${strong}`],
+        ["A/B", ab, "优先级样本"],
+        ["弱/错", weak, "数据质量"],
+        ["历史", analysisData.coverageHistoryCount || 0, "coverage rows"],
+      ].map(([label, value, sub]) => `<div class="kpi"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="sub">${esc(sub)}</div></div>`).join("");
+    }
+    function renderRadar(hotspots, reports) {
+      const items = [...(hotspots || [])].sort((a, b) => (levelRank[a.hotspotLevel] ?? 9) - (levelRank[b.hotspotLevel] ?? 9) || Number(b.coverage30d || 0) - Number(a.coverage30d || 0));
       const strongCount = items.filter((item) => String(item.hotspotLevel || "").toUpperCase() === "STRONG").length;
       const multiBroker = items.filter((item) => numberField(item, ["brokerCount30d", "brokerCount", "orgCount30d"]) >= 2).length;
       const firstCoverage = items.filter((item) => reasonCodes(item).includes("FIRST_COVERAGE")).length;
@@ -550,7 +846,7 @@ _INDEX_HTML = """<!doctype html>
         ["热点信号", items.length, "当前列表"],
         ["强热点", strongCount, "STRONG"],
         ["多券商共振", multiBroker, "30日内 >= 2家"],
-        ["首次覆盖", firstCoverage, `覆盖合计 ${coverageTotal}`],
+        ["首次覆盖", firstCoverage, `覆盖合计 ${coverageTotal} / 研报 ${reports.length}`],
       ].map(([label, value, sub]) => `<div class="radar-metric"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="sub">${esc(sub)}</div></div>`).join("");
       if (!items.length) {
         $("radarList").innerHTML = `<div class="radar-item"><div class="muted">暂无热点信号。可先导入已有输出，或完成一次抓取。</div></div>`;
@@ -561,6 +857,7 @@ _INDEX_HTML = """<!doctype html>
         const level = String(item.hotspotLevel || "").toUpperCase();
         const codes = reasonCodes(item).slice(0, 4);
         const cls = level === "STRONG" ? "strong" : numberField(item, ["brokerCount30d", "brokerCount"]) >= 2 ? "watch" : "";
+        const entityKey = entityKeyForHotspot(item);
         return `<div class="radar-item ${cls}">
           <div class="radar-item-head">
             <div>
@@ -575,6 +872,7 @@ _INDEX_HTML = """<!doctype html>
             <span>公司 ${numberField(item, ["coveredCompanyCount30d", "coveredCompanyCount"])}</span>
           </div>
           <div class="reason-list">${codes.map((code) => `<span class="pill">${esc(reasonLabel(code))}</span>`).join("") || '<span class="pill">关注</span>'}</div>
+          ${entityKey ? `<button type="button" class="link-button" data-entity-key="${esc(entityKey)}">查看</button>` : ""}
         </div>`;
       }).join("");
       const top = items[0];
@@ -587,65 +885,8 @@ _INDEX_HTML = """<!doctype html>
         </div>
         <div class="reason-list">${reasonCodes(top).slice(0, 5).map((code) => `<span class="pill">${esc(reasonLabel(code))}</span>`).join("") || '<span class="pill">关注</span>'}</div>`;
     }
-    function reportLimit() {
-      return Number($("reportLimit").value || 100);
-    }
-    function reportOffset() {
-      const limit = reportLimit();
-      return limit > 0 ? Math.max(0, reportPage - 1) * limit : 0;
-    }
-    function reportQuery() {
-      const params = new URLSearchParams({
-        limit: String(reportLimit()),
-        offset: String(reportOffset()),
-        search: $("reportSearch").value.trim()
-      });
-      return `/api/reports?${params.toString()}`;
-    }
-    function renderReportPager(payload) {
-      const total = Number(payload.total || payload.count || 0);
-      const limit = Number(payload.limit || 0);
-      const offset = Number(payload.offset || 0);
-      const shown = Number(payload.count || 0);
-      if (limit > 0 && total > 0 && shown === 0 && offset >= total) {
-        reportPage = Math.max(1, Math.ceil(total / limit));
-        refresh();
-        return;
-      }
-      if (limit <= 0) {
-        $("reportPageInfo").textContent = `全部 ${total} 条`;
-        $("reportPrevBtn").disabled = true;
-        $("reportNextBtn").disabled = true;
-        return;
-      }
-      const totalPages = Math.max(1, Math.ceil(total / limit));
-      const currentPage = Math.min(totalPages, Math.max(1, Math.floor(offset / limit) + 1));
-      const first = total === 0 ? 0 : offset + 1;
-      const last = Math.min(total, offset + shown);
-      $("reportPageInfo").textContent = `${first}-${last} / ${total} · 第 ${currentPage}/${totalPages} 页`;
-      $("reportPrevBtn").disabled = currentPage <= 1;
-      $("reportNextBtn").disabled = currentPage >= totalPages;
-    }
-    function renderReports(payload) {
-      const rows = payload.items || [];
-      renderReportPager(payload);
-      if (!rows.length) {
-        $("reports").innerHTML = `<tbody><tr><td><div class="muted">暂无匹配研报</div></td></tr></tbody>`;
-        return;
-      }
-      $("reports").innerHTML = `<thead><tr><th>日期</th><th>标的</th><th>行业</th><th>券商</th><th>评级</th><th>分数</th><th>文件</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(r.date)}</td><td>${esc(r.stockName || r.industryName)}</td><td>${esc(r.industryName)}</td><td>${esc(r.orgName)}</td><td>${esc(r.rating)}</td><td>${r.signalScore || 0}</td><td>${r.fileHref ? `<a href="/preview/${esc(r.fileHref)}">${esc(r.file || "open")}</a>` : ""}</td></tr>`).join("")}</tbody>`;
-    }
     function rowsWithDateNames(rows) {
       return (rows || []).map((row) => ({ name: row.name || String(row.date || "").slice(5), count: Number(row.count || 0) }));
-    }
-    function countBy(rows, getter) {
-      const counter = {};
-      (rows || []).forEach((row) => {
-        const value = getter(row);
-        if (!value) return;
-        counter[value] = (counter[value] || 0) + 1;
-      });
-      return Object.keys(counter).map((name) => ({ name, count: counter[name] })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "zh-CN"));
     }
     function emptyChart(id, text = "暂无数据") {
       $(id).innerHTML = `<div class="empty">${esc(text)}</div>`;
@@ -705,16 +946,31 @@ _INDEX_HTML = """<!doctype html>
       }
       return row.industryName === entity.label || row.industryName === entity.industryName;
     }
+    function directionSummary(summary) {
+      const safe = summary || {};
+      return `上修 ${safe.up || 0} / 下修 ${safe.down || 0} / 持平 ${safe.flat || 0}`;
+    }
     function selectedAnalysisEntity() {
-      const entities = (analysisData && analysisData.entityDrilldowns) || [];
+      const entities = filteredAnalysisEntities();
       const selectedKey = $("analysisEntity").value;
       return entities.find((entity) => entity.entityKey === selectedKey) || entities[0] || null;
     }
+    function entityMatchesFilters(entity, filters) {
+      const text = [entity.label, entity.stockCode, entity.industryName, entity.entityType, ...(entity.reasonCodes || [])].join(" ").toLowerCase();
+      return (!filters.search || text.includes(filters.search))
+        && (!filters.company || entity.label === filters.company || entity.stockCode === filters.company)
+        && (!filters.industry || entity.industryName === filters.industry || entity.label === filters.industry)
+        && (!filters.hotspot || entity.hotspotLevel === filters.hotspot)
+        && (!filters.reason || (entity.reasonCodes || []).includes(filters.reason));
+    }
     function filteredAnalysisEntities() {
-      const entities = (analysisData && analysisData.entityDrilldowns) || [];
+      const entities = allEntities();
+      const filters = readFilters();
       const query = $("analysisSearch").value.trim().toLowerCase();
-      if (!query) return entities;
-      return entities.filter((entity) => [entity.label, entity.stockCode, entity.industryName, entity.entityType, ...(entity.reasonCodes || [])].join(" ").toLowerCase().includes(query));
+      return entities.filter((entity) => {
+        const text = [entity.label, entity.stockCode, entity.industryName, entity.entityType, ...(entity.reasonCodes || [])].join(" ").toLowerCase();
+        return entityMatchesFilters(entity, filters) && (!query || text.includes(query));
+      });
     }
     function renderAnalysisOptions() {
       const allEntities = (analysisData && analysisData.entityDrilldowns) || [];
@@ -736,22 +992,40 @@ _INDEX_HTML = """<!doctype html>
         $("analysisEntity").value = current;
       }
     }
+    function renderAnalysisLatestReports(entity) {
+      const reports = (entity.latestReports || []).slice(0, 12);
+      if (!reports.length) {
+        $("analysisLatestReports").innerHTML = `<tbody><tr><td><div class="empty">暂无最新研报</div></td></tr></tbody>`;
+        return;
+      }
+      $("analysisLatestReports").innerHTML = `<thead><tr><th>日期</th><th>券商</th><th>评级</th><th>分数</th><th>主题</th><th>摘要</th><th>文件</th></tr></thead><tbody>${reports.map((row) => `<tr>
+        <td>${esc(row.date)}</td>
+        <td>${esc(row.orgName)}</td>
+        <td>${esc(row.rating || "-")}</td>
+        <td>${pill(row.priorityBucket)} ${esc(row.signalScore)}</td>
+        <td><div class="tags">${(row.themeTags || []).slice(0, 4).map((tag) => `<span class="pill">${esc(tag)}</span>`).join("")}</div></td>
+        <td class="summary">${esc(row.summary || row.title || "")}</td>
+        <td>${row.fileHref ? `<a href="/preview/${esc(row.fileHref)}">${esc(row.file || "预览")}</a>` : `<span class="muted">-</span>`}</td>
+      </tr>`).join("")}</tbody>`;
+    }
     function renderAnalysis() {
       const entity = selectedAnalysisEntity();
       if (!entity) {
         $("analysisKpis").innerHTML = `<div class="empty">暂无分析数据。请先导入已有输出，或完成一次抓取。</div>`;
         ["analysisCoverageChart", "analysisBrokerChart", "analysisScoreChart", "analysisTargetChart", "analysisEpsChart", "analysisRatingChart", "analysisPriorityChart", "analysisBrokerMix", "analysisThemeMix"].forEach((id) => emptyChart(id));
         $("analysisOpinionTable").innerHTML = `<tbody><tr><td><div class="empty">暂无变化记录</div></td></tr></tbody>`;
+        $("analysisLatestReports").innerHTML = `<tbody><tr><td><div class="empty">暂无最新研报</div></td></tr></tbody>`;
         return;
       }
       const entityReports = ((analysisData && analysisData.reports) || []).filter((row) => reportMatchesEntity(row, entity));
+      const summary = entity.opinionSummary || {};
       const kpis = [
         ["对象", entity.label, entity.entityType === "company" ? entity.stockCode || "公司" : "行业"],
         ["覆盖", entity.reportCount || 0, `${entity.firstDate || "-"} → ${entity.latestDate || "-"}`],
         ["券商", entity.brokerCount || 0, "不同机构"],
         ["均分", entity.avgScore || 0, "signalScore"],
         ["热点", entity.hotspotLevel || "-", (entity.reasonCodes || []).join(" | ") || "无"],
-        ["观点变化", (entity.opinionSummary || {}).trendCount || 0, "同一机构连续记录"],
+        ["观点变化", summary.trendCount || 0, `目标价 ${directionSummary(summary.target)}；EPS ${directionSummary(summary.eps)}`],
       ];
       $("analysisKpis").innerHTML = kpis.map(([label, value, sub]) => `<div class="analysis-kpi"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="sub">${esc(sub)}</div></div>`).join("");
       drawLine("analysisCoverageChart", entity.coverageByDay || [], "var(--blue)");
@@ -767,6 +1041,7 @@ _INDEX_HTML = """<!doctype html>
       const trends = entity.opinionTrends || [];
       if (!trends.length) {
         $("analysisOpinionTable").innerHTML = `<tbody><tr><td><div class="empty">暂无同一机构连续观点，评级/目标价/EPS 变化暂不可判断。</div></td></tr></tbody>`;
+        renderAnalysisLatestReports(entity);
         return;
       }
       $("analysisOpinionTable").innerHTML = `<thead><tr><th>券商</th><th>日期</th><th>评级变化</th><th>目标价变化</th><th>EPS 变化</th><th>评分变化</th></tr></thead><tbody>${trends.map((row) => `<tr>
@@ -777,14 +1052,154 @@ _INDEX_HTML = """<!doctype html>
         <td>${esc(row.previousEps || "-")} → ${esc(row.latestEps || "-")} ${pill(row.epsDirection)}</td>
         <td>${row.previousScore} → ${row.latestScore} ${pill(row.scoreDirection)}</td>
       </tr>`).join("")}</tbody>`;
+      renderAnalysisLatestReports(entity);
+    }
+    function renderRuns(runs) {
+      const rows = (runs && runs.items) || [];
+      if (!rows.length) {
+        $("runs").innerHTML = `<tbody><tr><td><div class="empty">暂无任务</div></td></tr></tbody>`;
+        return;
+      }
+      $("runs").innerHTML = `<thead><tr><th>ID</th><th>状态</th><th>开始</th><th>结束</th><th>OK/W/E</th><th>错误</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(String(r.run_id).slice(0, 8))}</td><td>${pill(r.status)}</td><td>${esc(r.started_at)}</td><td>${esc(r.ended_at || "")}</td><td>${r.ok_count}/${r.weak_count}/${r.error_count}</td><td>${esc(r.error_text || "")}</td></tr>`).join("")}</tbody>`;
+    }
+    function renderOverviewCharts(reports, hotspots) {
+      drawLine("reportTrendChart", seriesByDay(reports, (row) => row.date), "var(--blue)");
+      drawLine("brokerTrendChart", seriesByDay(reports, (row) => row.date, (row) => row.orgName), "var(--teal)");
+      drawBar("industryHeatChart", countBy(reports, (row) => row.industryName, 10), "var(--amber)");
+      drawBar("themeHeatChart", countTokens(reports, (row) => row.themeTags, 10), "var(--teal)");
+      drawBar("reasonTrendChart", countTokens(hotspots, (row) => reasonCodes(row), 10), "var(--rose)");
+      drawBar("qualityChart", countBy(reports, (row) => row.status || "unknown", 8), "#15803d");
+      drawBar("sourceChart", countBy(reports, (row) => row.source || "unknown", 8), "var(--blue)");
+    }
+    function renderHotspotsTable(rows) {
+      const limited = [...(rows || [])].sort((a, b) => (levelRank[a.hotspotLevel] ?? 9) - (levelRank[b.hotspotLevel] ?? 9) || Number(b.coverage30d || 0) - Number(a.coverage30d || 0)).slice(0, 120);
+      if (!limited.length) {
+        $("hotspots").innerHTML = `<tbody><tr><td><div class="empty">暂无热点信号</div></td></tr></tbody>`;
+        return;
+      }
+      $("hotspots").innerHTML = `<thead><tr><th>标的</th><th>等级</th><th>行业</th><th>30日/7日</th><th>券商</th><th>加速</th><th>买入比</th><th>原因</th><th>操作</th></tr></thead><tbody>${limited.map((row) => {
+        const entityKey = entityKeyForHotspot(row);
+        return `<tr>
+          <td><strong>${esc(row.entityName)}</strong><div class="muted">${esc(row.stockCode || row.entityType)}</div></td>
+          <td>${pill(row.hotspotLevel)}</td>
+          <td>${esc(row.industryName)}</td>
+          <td>${numberField(row, ["coverage30d"])} / ${numberField(row, ["coverage7d"])}</td>
+          <td>${numberField(row, ["brokerCount30d"])}<div class="muted">新增 ${numberField(row, ["newBrokerCount30d"])}</div></td>
+          <td>${numberField(row, ["coverageAcceleration"])}</td>
+          <td>${Math.round(Number(row.buyRatio || 0) * 100)}%</td>
+          <td><div class="tags">${reasonCodes(row).map((code) => `<span class="pill">${esc(reasonLabel(code))}</span>`).join("")}</div><div class="muted">${esc((row.reasons || []).join("；"))}</div></td>
+          <td>${entityKey ? `<button type="button" class="link-button" data-entity-key="${esc(entityKey)}">查看</button>` : `<span class="muted">-</span>`}</td>
+        </tr>`;
+      }).join("")}</tbody>`;
+    }
+    function renderGlobalOpinion(rows) {
+      const limited = (rows || []).slice(0, 120);
+      if (!limited.length) {
+        $("globalOpinionTable").innerHTML = `<tbody><tr><td><div class="empty">暂无连续观点记录</div></td></tr></tbody>`;
+        return;
+      }
+      $("globalOpinionTable").innerHTML = `<thead><tr><th>标的</th><th>券商</th><th>日期</th><th>评级</th><th>目标价</th><th>EPS</th><th>分数</th><th>次数</th><th>操作</th></tr></thead><tbody>${limited.map((row) => {
+        const entityKey = entityKeyForOpinion(row);
+        return `<tr>
+          <td><strong>${esc(row.stockName)}</strong><div class="muted">${esc(row.stockCode || row.industryName)}</div></td>
+          <td>${esc(row.orgName)}</td>
+          <td>${esc(row.previousDate)} → ${esc(row.latestDate)}</td>
+          <td>${esc(row.previousRating || "-")} → ${esc(row.latestRating || "-")}<div class="muted">${esc(row.ratingChange || "")}</div></td>
+          <td>${esc(row.previousTargetPrice || "-")} → ${esc(row.latestTargetPrice || "-")} ${pill(row.targetDirection)}</td>
+          <td>${esc(row.previousEps || "-")} → ${esc(row.latestEps || "-")} ${pill(row.epsDirection)}</td>
+          <td>${esc(row.previousScore)} → ${esc(row.latestScore)} ${pill(row.scoreDirection)}</td>
+          <td>${esc(row.count)}</td>
+          <td>${entityKey ? `<button type="button" class="link-button" data-entity-key="${esc(entityKey)}">查看</button>` : `<span class="muted">-</span>`}</td>
+        </tr>`;
+      }).join("")}</tbody>`;
+    }
+    function reportLimit() {
+      return Number($("reportLimit").value || 100);
+    }
+    function reportSearchMatches(row) {
+      const text = $("reportSearch").value.trim().toLowerCase();
+      return includesText(row, text);
+    }
+    function renderReportPager(total, shown, offset) {
+      const limit = reportLimit();
+      if (limit > 0 && total > 0 && shown === 0 && offset >= total) {
+        reportPage = Math.max(1, Math.ceil(total / limit));
+        renderDashboardViews();
+        return;
+      }
+      if (limit <= 0) {
+        $("reportPageInfo").textContent = `全部 ${total} 条`;
+        $("reportPrevBtn").disabled = true;
+        $("reportNextBtn").disabled = true;
+        return;
+      }
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+      const currentPage = Math.min(totalPages, Math.max(1, reportPage));
+      const first = total === 0 ? 0 : offset + 1;
+      const last = Math.min(total, offset + shown);
+      $("reportPageInfo").textContent = `${first}-${last} / ${total} · 第 ${currentPage}/${totalPages} 页`;
+      $("reportPrevBtn").disabled = currentPage <= 1;
+      $("reportNextBtn").disabled = currentPage >= totalPages;
+    }
+    function renderReports(rows) {
+      const searched = [...(rows || [])].filter(reportSearchMatches).sort((a, b) => String(b.date).localeCompare(String(a.date)) || Number(b.signalScore || 0) - Number(a.signalScore || 0));
+      const limit = reportLimit();
+      const offset = limit > 0 ? Math.max(0, reportPage - 1) * limit : 0;
+      const pageRows = limit > 0 ? searched.slice(offset, offset + limit) : searched;
+      renderReportPager(searched.length, pageRows.length, offset);
+      if (!pageRows.length) {
+        $("reports").innerHTML = `<tbody><tr><td><div class="muted">暂无匹配研报</div></td></tr></tbody>`;
+        return;
+      }
+      $("reports").innerHTML = `<thead><tr><th>日期</th><th>标的</th><th>行业</th><th>券商</th><th>评级</th><th>分数</th><th>主题</th><th>摘要</th><th>质量</th><th>文件</th><th>操作</th></tr></thead><tbody>${pageRows.map((r) => {
+        const entityKey = entityKeyForReport(r);
+        return `<tr>
+          <td>${esc(r.date)}</td>
+          <td><strong>${esc(r.stockName || r.industryName)}</strong><div class="muted">${esc(r.stockCode || "")}</div></td>
+          <td>${esc(r.industryName)}</td>
+          <td>${esc(r.orgName)}</td>
+          <td>${esc(r.rating || "-")}</td>
+          <td>${pill(r.priorityBucket)} <strong>${esc(r.signalScore || 0)}</strong></td>
+          <td><div class="tags">${(r.themeTags || []).slice(0, 5).map((tag) => `<span class="pill">${esc(tag)}</span>`).join("")}</div></td>
+          <td class="summary">${esc(r.summary || r.title || "")}</td>
+          <td>${esc(r.status || "-")}<div class="muted">${esc(r.source || "-")} / Q ${esc(r.qualityScore || 0)}</div></td>
+          <td>${r.fileHref ? `<a href="/preview/${esc(r.fileHref)}">${esc(r.file || "预览")}</a>` : `<span class="muted">-</span>`}</td>
+          <td>${entityKey ? `<button type="button" class="link-button" data-entity-key="${esc(entityKey)}">查看</button>` : `<span class="muted">-</span>`}</td>
+        </tr>`;
+      }).join("")}</tbody>`;
+    }
+    function bindEntityButtons() {
+      document.querySelectorAll("[data-entity-key]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const key = button.dataset.entityKey || "";
+          renderAnalysisOptions();
+          $("analysisEntity").value = key;
+          renderAnalysis();
+          $("analysisPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
+    }
+    function renderDashboardViews() {
+      const { reports, hotspots, opinions } = filteredDashboardData();
+      renderRadar(hotspots, reports);
+      renderKpis(reports, hotspots);
+      renderOverviewCharts(reports, hotspots);
+      renderHotspotsTable(hotspots);
+      renderGlobalOpinion(opinions);
+      renderAnalysisOptions();
+      renderAnalysis();
+      renderReports(reports);
+      bindEntityButtons();
+      const meta = (analysisData && analysisData.meta) || {};
+      $("dashboardFooter").textContent = `显示 ${reports.length} 篇研报，${hotspots.length} 条热点信号，索引文件 ${meta.reportIndexCount || 0} 个`;
     }
     async function loadAnalysis(options = {}) {
       const silent = Boolean(options.silent);
       if (!silent) setStatus("分析数据刷新中...");
       try {
         analysisData = await api("/api/dashboard-data");
-        renderAnalysisOptions();
-        renderAnalysis();
+        populateGlobalFilters();
+        renderDashboardViews();
         if (!silent) setStatus(`分析已刷新：${new Date().toLocaleTimeString()}`, "good");
         return true;
       } catch (error) {
@@ -795,21 +1210,16 @@ _INDEX_HTML = """<!doctype html>
     async function refresh(options = {}) {
       const silent = Boolean(options.silent);
       if (!silent) setStatus("刷新中...");
-      const [health, runs, reports, hotspots] = await Promise.all([
-        api("/api/health"), api("/api/runs"), api(reportQuery()), api("/api/hotspots?limit=80")
+      const [health, runs, dashboard] = await Promise.all([
+        api("/api/health"), api("/api/runs"), api("/api/dashboard-data")
       ]);
+      latestHealth = health;
+      latestRuns = runs;
+      analysisData = dashboard;
       $("meta").textContent = "";
-      renderRadar(health, hotspots);
-      $("kpis").innerHTML = [
-        ["Reports", health.tables.reports],
-        ["Hotspots", health.tables.hotspots],
-        ["Coverage", health.tables.coverage_history],
-        ["Manifests", health.tables.manifests],
-        ["Runs", health.tables.runs],
-      ].map(([k, v]) => `<div class="kpi"><div class="muted">${k}</div><div class="value">${v}</div></div>`).join("");
-      $("runs").innerHTML = `<thead><tr><th>ID</th><th>状态</th><th>开始</th><th>结束</th><th>OK/W/E</th><th>错误</th></tr></thead><tbody>${runs.items.map((r) => `<tr><td>${esc(String(r.run_id).slice(0, 8))}</td><td>${pill(r.status)}</td><td>${esc(r.started_at)}</td><td>${esc(r.ended_at || "")}</td><td>${r.ok_count}/${r.weak_count}/${r.error_count}</td><td>${esc(r.error_text || "")}</td></tr>`).join("")}</tbody>`;
-      $("hotspots").innerHTML = `<thead><tr><th>标的</th><th>等级</th><th>行业</th><th>30日</th><th>券商</th></tr></thead><tbody>${hotspots.items.map((h) => `<tr><td>${esc(h.entityName)}</td><td>${pill(h.hotspotLevel)}</td><td>${esc(h.industryName)}</td><td>${h.coverage30d || 0}</td><td>${h.brokerCount30d || 0}</td></tr>`).join("")}</tbody>`;
-      renderReports(reports);
+      populateGlobalFilters();
+      renderRuns(latestRuns);
+      renderDashboardViews();
       if (!silent) setStatus(`已刷新：${new Date().toLocaleTimeString()}`, "good");
     }
     async function safeRefresh(options = {}) {
@@ -826,7 +1236,6 @@ _INDEX_HTML = """<!doctype html>
         const payload = await api("/api/import-existing", { method: "POST" });
         reportPage = 1;
         await refresh({ silent: true });
-        await loadAnalysis({ silent: true });
         setStatus(`导入完成：${formatImported(payload.imported)}`, "good");
       } catch (error) {
         setStatus(`导入失败：${error.message}`, "error");
@@ -836,19 +1245,34 @@ _INDEX_HTML = """<!doctype html>
     }
     async function refreshAll() {
       await safeRefresh();
-      await loadAnalysis({ silent: true });
+    }
+    function resetGlobalFilters() {
+      const dates = dashboardDates();
+      filterIds.forEach((id) => {
+        const el = $(id);
+        if (!el) return;
+        el.value = "";
+      });
+      if (dates.length) {
+        $("globalStartDate").value = dates[0];
+        $("globalEndDate").value = dates[dates.length - 1];
+      }
+      reportPage = 1;
+      renderDashboardViews();
     }
     $("importBtn").addEventListener("click", importExisting);
     $("refreshBtn").addEventListener("click", refreshAll);
     $("analysisRefreshBtn").addEventListener("click", () => loadAnalysis());
     $("analysisEntity").addEventListener("change", renderAnalysis);
     $("analysisSearch").addEventListener("input", () => { renderAnalysisOptions(); renderAnalysis(); });
-    $("reportLimit").addEventListener("change", async () => { reportPage = 1; await safeRefresh(); });
-    $("reportSearchBtn").addEventListener("click", async () => { reportPage = 1; await safeRefresh(); });
-    $("reportClearBtn").addEventListener("click", async () => { $("reportSearch").value = ""; reportPage = 1; await safeRefresh(); });
-    $("reportSearch").addEventListener("keydown", async (event) => { if (event.key === "Enter") { reportPage = 1; await safeRefresh(); } });
-    $("reportPrevBtn").addEventListener("click", async () => { reportPage = Math.max(1, reportPage - 1); await safeRefresh(); });
-    $("reportNextBtn").addEventListener("click", async () => { reportPage += 1; await safeRefresh(); });
+    filterIds.forEach((id) => $(id).addEventListener("input", () => { reportPage = 1; renderDashboardViews(); }));
+    $("resetFiltersBtn").addEventListener("click", resetGlobalFilters);
+    $("reportLimit").addEventListener("change", () => { reportPage = 1; renderDashboardViews(); });
+    $("reportSearchBtn").addEventListener("click", () => { reportPage = 1; renderDashboardViews(); });
+    $("reportClearBtn").addEventListener("click", () => { $("reportSearch").value = ""; reportPage = 1; renderDashboardViews(); });
+    $("reportSearch").addEventListener("keydown", (event) => { if (event.key === "Enter") { reportPage = 1; renderDashboardViews(); } });
+    $("reportPrevBtn").addEventListener("click", () => { reportPage = Math.max(1, reportPage - 1); renderDashboardViews(); });
+    $("reportNextBtn").addEventListener("click", () => { reportPage += 1; renderDashboardViews(); });
     $("concurrency").addEventListener("input", () => { fetchTuningTouched = true; });
     $("jitter").addEventListener("input", () => { fetchTuningTouched = true; });
     $("qtype").addEventListener("change", () => {
@@ -892,7 +1316,7 @@ _INDEX_HTML = """<!doctype html>
       $("concurrency").value = "2";
       $("jitter").value = "0.5";
     }
-    safeRefresh({ silent: true }).then(() => loadAnalysis({ silent: true }));
+    safeRefresh({ silent: true });
     setInterval(() => safeRefresh({ silent: true }), 5000);
   </script>
 </body>

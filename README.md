@@ -8,14 +8,16 @@
 
 简体中文 | [English](./README.en.md)
 
-面向研究场景的东方财富研报抓取与本地归档工具。它可以按日期或日期区间批量抓取东方财富研报中心的个股研报和行业研报，自动提取正文、生成摘要、打分、横向归纳，并输出适合阅读、AI 分析和程序化二次处理的本地研究文件。
+把东方财富研报抓到本地，并自动整理成 Markdown、CSV、热点信号、趋势看板和本地 Web App 的研究工具。你可以用它查看近期哪些公司/行业被密集覆盖、哪些券商在写、评级/目标价/EPS 有没有变化，以及每篇研报的原文摘要。
 
-> 这是页面抓取型 workflow，不是东方财富官方稳定内容 API。请自行确认使用方式符合目标网站条款、政策和适用法规。
+如果你是第一次使用，建议直接从“一键启动本地 App”开始，不需要先理解所有 CLI 参数。
 
 ## 目录
 
 - [功能亮点](#功能亮点)
-- [快速开始](#快速开始)
+- [一键启动本地 App](#一键启动本地-app)
+- [第一次抓取研报](#第一次抓取研报)
+- [输出文件怎么看](#输出文件怎么看)
 - [安装](#安装)
 - [常用命令](#常用命令)
 - [输出内容](#输出内容)
@@ -23,27 +25,95 @@
 - [CLI 参数](#cli-参数)
 - [项目结构](#项目结构)
 - [开发与测试](#开发与测试)
-- [限制与免责声明](#限制与免责声明)
+- [已知限制](#已知限制)
 
 ## 功能亮点
 
-- 支持东方财富个股研报与行业研报抓取。
-- 支持单日和日期区间批量任务。
-- 支持按股票/代码、机构、评级、行业筛选。
-- 自动重试列表页和详情页请求。
-- 支持基于已有 Markdown 与 `run_manifest.jsonl` 的断点续跑。
-- HTML 抽取偏弱时自动尝试 PDF fallback。
-- 使用文本质量分选择 HTML / PDF 结果。
-- 自动生成单篇 Markdown、摘要、日报、行业/主题归纳、交易看板和共识简报。
-- 输出 `scoreReasons` / `scoreBreakdown`，让信号评分更透明。
-- 累计 `COVERAGE_HISTORY.jsonl`，生成公司/行业覆盖汇总。
-- 自动生成 `HOTSPOT_DASHBOARD.md` 和 `HOTSPOT_SIGNALS.csv`，识别近期首次覆盖、沉寂后再覆盖、多券商集中覆盖和行业共振。
-- 自动生成离线静态 `DASHBOARD.html`，集中查看近期热点、趋势、研报数量、筛选结果、观点变化和数据质量。
-- 可选本地 Web App：用 SQLite 导入已有输出，浏览器查看任务、热点、研报和 Dashboard 数据。
-- 支持 `--doctor`、`--dry-run`、`--list-only`、`--hotspots-only`、`--dashboard-only` 轻量模式。
-- 0.5.0 新增 Local App MVP；0.4.0 新增可视化 Dashboard。
+- 抓取对象：支持个股研报、行业研报，也支持两者一起抓。
+- 抓取范围：支持单日、日期区间、股票/代码、行业、券商、评级筛选。
+- 本地 App：浏览器里发起抓取、查看热点、趋势、观点变化和研报 Markdown。
+- 静态 Dashboard：生成 `DASHBOARD.html`，不启动服务也能打开查看。
+- 热点识别：识别近期首次覆盖、多券商覆盖、覆盖加速、行业共振。
+- 观点变化：跟踪评级、目标价、EPS、信号评分的连续变化。
+- 断点续跑：已有文件不会重复抓，弱抽取和失败项可以单独重试。
+- 输出完整：Markdown、CSV/XLSX、JSON、日报、主题/行业归纳、共识简报。
+- 轻量模式：支持环境检查、只看列表、只重算热点、只重建 Dashboard。
 
-## 快速开始
+## 一键启动本地 App
+
+本地 App 是最适合新手的入口。它会在浏览器里打开一个工作台，你可以在页面上点按钮抓研报、看热点、筛选公司/行业、预览 Markdown 原文。
+
+### Windows
+
+下载项目后，进入项目文件夹，双击：
+
+```text
+start_local_app.bat
+```
+
+脚本会自动做这些事：
+
+- 检查 Python。
+- 如果没有 Python，会尝试用 `winget` 安装 Python 3.12。
+- 安装本地 App 依赖。
+- 导入已有输出。
+- 打开浏览器访问 `http://127.0.0.1:8765`。
+
+### macOS / Linux
+
+第一次运行：
+
+```bash
+chmod +x start_local_app.sh
+./start_local_app.sh
+```
+
+以后再启动：
+
+```bash
+./start_local_app.sh
+```
+
+如果不想改权限，也可以直接运行：
+
+```bash
+bash start_local_app.sh
+```
+
+macOS / Linux 脚本会创建项目内 `.venv`，安装 `.[app]` 依赖，导入已有输出并打开浏览器。如果 macOS 没有 Python 且已经安装 Homebrew，脚本会尝试用 Homebrew 安装 Python；如果没有 Homebrew，会提示你先安装 Python。
+
+### 启动后看到什么
+
+- 浏览器地址：`http://127.0.0.1:8765`
+- 页面上方：近期热点、趋势总览、全局筛选。
+- 页面中部：公司/行业可视化分析、观点变化、研报明细。
+- 页面底部：发起抓取、近期抓取记录。
+
+启动 App 的终端窗口需要保持开启。关闭终端后，本地 App 服务也会停止。
+
+## 第一次抓取研报
+
+### 在本地 App 里抓取
+
+打开本地 App 后，滑到页面底部的“发起抓取”：
+
+1. 选择“单日日期”，或填写“区间开始 / 区间结束”。
+2. 类型选择“全部”“个股研报”或“行业研报”。
+3. 可以按股票、行业、券商、评级筛选；不填就是不过滤。
+4. 点“开始”。
+5. 抓取完成后点“刷新”，查看热点、趋势和研报明细。
+
+几个容易混淆的参数：
+
+| 参数 | 小白解释 |
+|---|---|
+| `limit` | 每个日期最多抓多少篇；留空表示不限制 |
+| `并发` | 同时抓多少篇详情页；本地 App 抓“全部”时默认更保守 |
+| `jitter` | 每次请求之间随机等一小会儿，适合批量抓取时放慢节奏 |
+
+### 用命令行抓取
+
+如果你熟悉终端，可以直接运行：
 
 ```bash
 git clone https://github.com/GitPupil/eastmoney-report-scraper.git
@@ -52,42 +122,56 @@ pip install -r requirements.txt
 python scripts/fetch_reports.py --date 2026-05-12 --limit 5
 ```
 
-运行后默认输出到：
+同时抓个股研报和行业研报：
 
-```text
-eastmoney_reports/研报_2026-05-12/
+```bash
+python scripts/fetch_reports.py --date 2026-05-12 --qtype 2
 ```
 
-同时会在输出根目录累计历史覆盖记录：
+抓一个日期区间：
+
+```bash
+python scripts/fetch_reports.py --start-date 2026-05-09 --end-date 2026-05-12
+```
+
+## 输出文件怎么看
+
+默认输出目录是：
 
 ```text
 eastmoney_reports/
+```
+
+最常看的文件：
+
+| 文件 | 适合什么时候看 |
+|---|---|
+| `DASHBOARD.html` | 想快速看热点、趋势、筛选、观点变化 |
+| `HOTSPOT_DASHBOARD.md` | 想看近期首次覆盖、多券商共振、行业共振 |
+| `HOTSPOT_SIGNALS.csv` | 想用表格筛选热点信号 |
+| `TRADING_DASHBOARD.md` | 想看交易优先级、风险、行业/主题热度 |
+| `CONSENSUS_BRIEF.md` | 想看同一公司多家券商覆盖和分歧 |
+| `report_index.csv` | 想用 Excel 或程序处理研报字段 |
+| 单篇 `.md` | 想看某篇研报的正文、摘要、风险和结构化信号 |
+
+抓取后会看到类似结构：
+
+```text
+eastmoney_reports/
+├── DASHBOARD.html
+├── HOTSPOT_DASHBOARD.md
+├── HOTSPOT_SIGNALS.csv
 ├── COVERAGE_HISTORY.jsonl
 ├── COMPANY_COVERAGE_SUMMARY.csv
 ├── INDUSTRY_COVERAGE_SUMMARY.csv
-├── DASHBOARD.html
-├── HOTSPOT_DASHBOARD.md
-└── HOTSPOT_SIGNALS.csv
+└── 研报_2026-05-12/
+    ├── 001——某公司——某标题.md
+    ├── SUMMARY.md
+    ├── ANALYSIS_INPUT.json
+    ├── TRADING_DASHBOARD.md
+    ├── CONSENSUS_BRIEF.md
+    └── report_index.csv
 ```
-
-安装为 Python 包后，也可以使用命令行入口：
-
-```bash
-pip install .
-eastmoney-report-scraper --date 2026-05-12 --limit 5
-```
-
-本地 Web App 是可选能力：
-
-```bash
-pip install ".[app]"
-eastmoney-report-scraper import-existing --output-dir ./eastmoney_reports
-eastmoney-report-scraper app --output-dir ./eastmoney_reports --open-browser
-```
-
-Windows 用户也可以直接双击 `start_local_app.bat`。如果电脑没有 Python，脚本会先尝试通过 `winget` 安装 Python 3.12；如果系统没有 `winget`，会提示手动安装链接。
-
-本地 App 支持发起抓取、导入已有输出、查看研报明细，并提供可视化分析面板：可按公司或行业查看覆盖趋势、券商扩散、信号评分、目标价/EPS 轨迹、评级分布、等级分布和同一机构连续观点变化。
 
 ## 安装
 
@@ -298,6 +382,17 @@ eastmoney-report-scraper import-existing --output-dir ./eastmoney_reports
 eastmoney-report-scraper app --output-dir ./eastmoney_reports --host 127.0.0.1 --port 8765 --open-browser
 ```
 
+一键启动：
+
+```bash
+# Windows：双击
+start_local_app.bat
+
+# macOS / Linux
+chmod +x start_local_app.sh
+./start_local_app.sh
+```
+
 打开：
 
 ```text
@@ -311,6 +406,7 @@ Local App MVP 支持：
 - 从页面发起单日/区间抓取。
 - 通过 `/api/health`、`/api/reports`、`/api/hotspots`、`/api/dashboard-data` 读取本地数据。
 - Windows 新电脑可双击 `start_local_app.bat` 一键安装依赖、导入已有输出、启动服务并打开浏览器。
+- macOS / Linux 可运行 `start_local_app.sh`，脚本会创建 `.venv`、安装依赖、导入已有输出、启动服务并打开浏览器。
 
 ## 未来集成计划
 
@@ -431,13 +527,12 @@ python scripts/fetch_reports.py --date 2026-05-12 --limit 2 --output-dir ./eastm
 - 已增加 Local App MVP，支持 SQLite 导入、本地 API 和浏览器工作台。
 - 后续重点见 [ROADMAP.md](./ROADMAP.md) 与 [TODO.md](./TODO.md)。
 
-## 限制与免责声明
+## 已知限制
 
 - 本项目不是官方稳定内容 API。
 - 东方财富页面结构变化可能导致抽取逻辑需要调整。
 - PDF fallback 依赖本地 `pdftotext`。
-- 当前结构化分析是规则驱动，适合研究初筛和归档，不构成投资建议。
-- 请在使用时自行确认符合目标网站条款、使用政策与适用法规。
+- 当前结构化分析是规则驱动，适合研究初筛和归档。
 
 ## License
 
