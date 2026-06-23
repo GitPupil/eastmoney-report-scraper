@@ -36,16 +36,20 @@
 - Reduce noisy summary bullets
 - Add stronger handling for malformed pages
 
-### 0.7.0: Research Depth
+### 0.7.0: Research Narrative & AI Explanation
 - Improve headline and core-driver quality
-- Deepen consensus and divergence summaries
-- Add richer range-level synthesis
-- Calibrate hotspot reason categories on real small samples
+- Build structured opinion-change evidence for ratings, target prices, EPS, signal score, and same-broker continuity
+- Track company and industry narrative trends through keywords, theme tags, broker diffusion, and hotspot reason codes
+- Deepen consensus, divergence, and range-level synthesis using structured evidence
+- Add optional AI explanation for selected companies, industries, hotspots, and date ranges
+- Add token redaction helpers, local token config, and tests before enabling AI-token workflows
 
-### 0.8.0: Data & AI Integrations
+### 0.8.0: Market Data & Alpha Feedback
 - Add optional real-time market data API integration with user-provided local tokens
-- Add optional AI analysis workflow with user-provided model API tokens
-- Add token redaction helpers and tests so tokens never appear in logs, exports, dashboards, SQLite rows, or exceptions
+- Compare report coverage heat, first coverage, broker resonance, and opinion-change events with later market performance
+- Add 3/5/10-day post-event return and excess-return summaries
+- Let AI explanations distinguish alpha, lagging confirmation, and narrative follow-through when market evidence is available
+- Keep tokens out of Git, logs, exports, dashboards, SQLite rows, and exceptions
 
 ### 0.9.0: Developer Experience
 - Document release tagging and publishing workflow
