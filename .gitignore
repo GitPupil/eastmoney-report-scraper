@@ -11,3 +11,27 @@ pytest-cache-files-*/
 .ui_check/
 eastmoney_reports/
 eastmoney_reports_check/
+
+# Local research outputs, even when users customize the output directory.
+*.db
+local_app_config.json
+DASHBOARD.html
+run_manifest.jsonl
+report_index.csv
+report_index.xlsx
+SUMMARY.md
+ANALYSIS_INPUT.md
+ANALYSIS_INPUT.json
+DAILY_BRIEF.md
+TOP_SIGNALS.md
+SECTOR_BRIEF.md
+THEME_BRIEF.md
+TRADING_DASHBOARD.md
+CONSENSUS_BRIEF.md
+RANGE_SUMMARY.md
+RANGE_DASHBOARD.md
+HOTSPOT_DASHBOARD.md
+HOTSPOT_SIGNALS.csv
+COVERAGE_HISTORY.jsonl
+COMPANY_COVERAGE_SUMMARY.csv
+INDUSTRY_COVERAGE_SUMMARY.csv

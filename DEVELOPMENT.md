@@ -82,15 +82,16 @@ The implementation keeps `scripts/fetch_reports.py` as a compatibility entrypoin
 - `eastmoney_report_scraper/parser.py`
 - `eastmoney_report_scraper/analysis.py`
 - `eastmoney_report_scraper/scoring.py`
+- `eastmoney_report_scraper/core/` - shared orchestration for CLI, OpenClaw, and Local App
 - `eastmoney_report_scraper/exporters/`
 - `eastmoney_report_scraper/hotspots.py`
 - `eastmoney_report_scraper/dashboard.py`
 - `eastmoney_report_scraper/storage/`
 - `eastmoney_report_scraper/app/` - Local App routes, templates, and static assets
 - `eastmoney_report_scraper/config.py`
-- `eastmoney_report_scraper/cli.py`
+- `eastmoney_report_scraper/cli.py` - CLI argument parsing and entry dispatch
 
-The Local App is developed on `codex/local-app-mvp` before being merged back to `main`. Keep CLI/OpenClaw behavior compatible while adding local app features.
+The Local App now lives on `main`. Keep CLI/OpenClaw behavior compatible while adding local app features, and route shared workflow changes through `eastmoney_report_scraper/core/`.
 
 ## Fixtures
 

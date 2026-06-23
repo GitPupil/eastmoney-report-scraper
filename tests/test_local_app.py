@@ -16,7 +16,7 @@ from eastmoney_report_scraper.app.server import (
     _resolve_file_target,
     create_app,
 )
-from eastmoney_report_scraper.app.tasks import TaskManager, build_fetch_command
+from eastmoney_report_scraper.app.tasks import TaskManager, build_fetch_command, build_fetch_namespace
 from eastmoney_report_scraper.cli import parse_app_args, run_import_existing_command
 from eastmoney_report_scraper.config import (
     LocalAppConfig,
@@ -281,6 +281,28 @@ def test_task_manager_transitions_to_done_with_fake_runner(tmp_path: Path):
     assert row["status"] == "done"
     assert row["ok_count"] == 1
     assert "--date" in commands[0]
+
+
+def test_local_app_fetch_namespace_targets_core_workflow(tmp_path: Path):
+    args = build_fetch_namespace(
+        {
+            "date": "2026-05-12",
+            "stock": "样本,测试",
+            "qtype": 2,
+            "limit": 2,
+            "concurrency": 2,
+            "jitter": 0.5,
+            "no_xlsx": True,
+        },
+        tmp_path,
+    )
+    assert args.date == "2026-05-12"
+    assert args.stock_filters == ["样本", "测试"]
+    assert args.qtype == 2
+    assert args.limit == 2
+    assert args.concurrency == 2
+    assert args.jitter == 0.5
+    assert args.no_xlsx is True
 
 
 def test_build_fetch_command_keeps_cli_entrypoint(tmp_path: Path):

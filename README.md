@@ -499,13 +499,14 @@ Local App MVP 支持：
 │   ├── parser.py       # HTML/PDF 抽取与文本质量评分
 │   ├── analysis.py     # 摘要、风险、财务信号、估值字段
 │   ├── scoring.py      # signal score 与 priority bucket
+│   ├── core/           # CLI、OpenClaw 和本地 App 共用的业务编排
 │   ├── exporters/      # Markdown、CSV、XLSX、日报、覆盖历史和看板
 │   ├── hotspots.py     # 公司/行业近期热度和覆盖变化识别
 │   ├── dashboard.py    # 离线静态 HTML Dashboard
 │   ├── storage/        # 本地 SQLite 导入和查询
 │   ├── app/            # 本地 Web App 路由、模板和静态资源
 │   ├── config.py       # 本地 App 配置
-│   └── cli.py          # CLI 参数与主流程编排
+│   └── cli.py          # CLI 参数解析与入口分发
 ├── scripts/
 │   └── fetch_reports.py # 兼容入口
 ├── tests/
@@ -519,6 +520,14 @@ Local App MVP 支持：
 ├── ROADMAP.md
 ├── TODO.md
 └── DEVELOPMENT.md
+```
+
+入口关系：
+
+```text
+OpenClaw / scripts/fetch_reports.py -> CLI -> core
+eastmoney-report-scraper            -> CLI -> core
+Local App                           -> app services/tasks -> core
 ```
 
 ## 开发与测试

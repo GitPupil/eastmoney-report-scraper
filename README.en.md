@@ -268,16 +268,25 @@ eastmoney_report_scraper/
 ├── parser.py
 ├── analysis.py
 ├── scoring.py
+├── core/         # Shared orchestration for CLI, OpenClaw, and Local App
 ├── exporters/
 ├── hotspots.py
 ├── dashboard.py
 ├── storage/
 ├── app/          # Local App routes, templates, and static assets
 ├── config.py
-└── cli.py
+└── cli.py        # CLI argument parsing and entry dispatch
 ```
 
 `scripts/fetch_reports.py` is kept as a compatibility entrypoint. Both it and the installed `eastmoney-report-scraper` command call the same `eastmoney_report_scraper.cli:main`.
+
+Entry relationship:
+
+```text
+OpenClaw / scripts/fetch_reports.py -> CLI -> core
+eastmoney-report-scraper            -> CLI -> core
+Local App                           -> app services/tasks -> core
+```
 
 ## Development
 

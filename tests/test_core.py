@@ -10,7 +10,7 @@ from eastmoney_report_scraper.analysis import (
     extract_valuation_fields,
 )
 from eastmoney_report_scraper.client import build_list_url
-from eastmoney_report_scraper.cli import (
+from eastmoney_report_scraper.core.orchestration import (
     append_manifest_entry,
     daterange,
     existing_markdown_map,
@@ -98,7 +98,7 @@ def test_all_qtype_fetches_stock_and_industry_lists(monkeypatch, tmp_path: Path)
             {"industryName": "重复行业", "infoCode": "DUP"},
         ]
 
-    monkeypatch.setattr("eastmoney_report_scraper.cli.fetch_report_list", fake_fetch_report_list)
+    monkeypatch.setattr("eastmoney_report_scraper.core.orchestration.fetch_report_list", fake_fetch_report_list)
     args = argparse.Namespace(qtype=2, page_size=100, timeout=1, retries=0, retry_delay=0)
 
     rows, counts = fetch_report_lists_for_date("2026-05-12", args, tmp_path / "run.log.jsonl")
@@ -370,8 +370,8 @@ def test_refresh_weak_refetches_existing(monkeypatch, tmp_path: Path):
     def fake_http(*args, **kwargs):
         return '<div class="ctx-content"><p>' + SAMPLE_TEXT + "</p></div>"
 
-    monkeypatch.setattr("eastmoney_report_scraper.cli.http_get_with_retry", fake_http)
-    monkeypatch.setattr("eastmoney_report_scraper.cli.extract_pdf_text", lambda *args, **kwargs: "")
+    monkeypatch.setattr("eastmoney_report_scraper.core.orchestration.http_get_with_retry", fake_http)
+    monkeypatch.setattr("eastmoney_report_scraper.core.orchestration.extract_pdf_text", lambda *args, **kwargs: "")
     result = fetch_detail(
         item=SAMPLE_ITEM,
         output_dir=tmp_path,

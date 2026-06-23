@@ -92,7 +92,7 @@ def test_list_mode_outputs_selected_items_without_details(monkeypatch, capsys, t
             },
         ]
 
-    monkeypatch.setattr("eastmoney_report_scraper.cli.fetch_report_list", fake_fetch_report_list)
+    monkeypatch.setattr("eastmoney_report_scraper.core.orchestration.fetch_report_list", fake_fetch_report_list)
     args = argparse.Namespace(
         date="2026-05-12",
         page_size=100,
@@ -117,7 +117,7 @@ def test_dashboard_only_mode_does_not_fetch_network(monkeypatch, capsys, tmp_pat
     def fail_fetch_report_list(*args, **kwargs):
         raise AssertionError("dashboard-only should not fetch list pages")
 
-    monkeypatch.setattr("eastmoney_report_scraper.cli.fetch_report_list", fail_fetch_report_list)
+    monkeypatch.setattr("eastmoney_report_scraper.core.orchestration.fetch_report_list", fail_fetch_report_list)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -144,8 +144,8 @@ def test_no_dashboard_skips_dashboard_writer(monkeypatch, capsys, tmp_path: Path
     def fail_write_dashboard(*args, **kwargs):
         raise AssertionError("--no-dashboard should skip dashboard generation")
 
-    monkeypatch.setattr("eastmoney_report_scraper.cli.run_for_date", fake_run_for_date)
-    monkeypatch.setattr("eastmoney_report_scraper.cli.write_dashboard", fail_write_dashboard)
+    monkeypatch.setattr("eastmoney_report_scraper.core.orchestration.run_for_date", fake_run_for_date)
+    monkeypatch.setattr("eastmoney_report_scraper.core.orchestration.write_dashboard", fail_write_dashboard)
     monkeypatch.setattr(
         sys,
         "argv",
