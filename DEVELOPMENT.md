@@ -123,9 +123,9 @@ Before tagging a release:
 - Run the smoke validation commands.
 - Push to `main` and confirm CI is green.
 
-## Local App Merge Checklist
+## Local App Compatibility Checklist
 
-Before merging `codex/local-app-mvp` back to `main`:
+Before changing Local App or shared orchestration behavior:
 
 - Confirm README and SKILL both say OpenClaw/agent defaults to CLI and local users default to Local App.
 - Confirm `start_local_app.bat` still starts the Windows local app flow.
@@ -134,8 +134,7 @@ Before merging `codex/local-app-mvp` back to `main`:
 - Run `python -m ruff check . --no-cache`.
 - Run `python -m py_compile scripts/fetch_reports.py`.
 - Run `python scripts/fetch_reports.py --help`.
-- Confirm GitHub CI is green on the pull request.
-- Merge back to `main` after checks pass; do not keep long-lived divergent app and OpenClaw branches.
+- Confirm GitHub CI is green after push or on the pull request.
 
 ## Recommended Next Engineering Steps
 

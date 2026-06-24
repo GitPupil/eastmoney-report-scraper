@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+- Local App background fetch tasks now call the shared `core` orchestration layer directly while the CLI remains an entrypoint wrapper.
+
+### Removed
+- Removed the legacy Simplified Chinese compatibility redirect file because root `README.md` is now the default Simplified Chinese documentation.
+
 ## [0.5.0] - 2026-06-21
 
 ### Added
@@ -12,7 +20,7 @@ All notable changes to this project will be documented in this file.
 - `start_local_app.bat` for one-click Windows startup from a fresh checkout, including optional Python 3.12 installation through `winget`
 - local SQLite cache `eastmoney.db` for reports, hotspots, coverage history, manifests, and run status
 - `local_app_config.json` for local app defaults
-- local app service and task layers with background CLI-based fetch runs
+- local app service and task layers with background fetch runs
 - tests for config, SQLite import, service payloads, task transitions, and import CLI output
 - `--qtype 2` / Local App `全部` mode for fetching stock and industry reports together
 - Local App visual analysis panel for company/industry trends, broker diffusion, ratings, priority buckets, target price/EPS timelines, and continuous opinion changes
@@ -73,7 +81,6 @@ All notable changes to this project will be documented in this file.
 - GitHub default Chinese `README.md`
 - English documentation in `README.en.md`
 - formalized project documentation in `README.md`
-- compatibility redirect in `README.zh-CN.md`
 - historical coverage detail in `COVERAGE_HISTORY.jsonl`
 - company coverage summary in `COMPANY_COVERAGE_SUMMARY.csv`
 - industry coverage summary in `INDUSTRY_COVERAGE_SUMMARY.csv`

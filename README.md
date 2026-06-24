@@ -42,7 +42,7 @@
 
 ## 入口怎么选
 
-这个项目有两个入口，但它们使用同一套数据和输出目录，不是两个独立项目。
+这个项目有三种常用入口，但它们使用同一套核心逻辑、数据和输出目录，不是多个独立项目。
 
 | 你是谁 / 场景 | 推荐入口 | 适合做什么 |
 |---|---|---|
@@ -488,6 +488,7 @@ Local App MVP 支持：
 | `--host` | 本地 App host，默认 `127.0.0.1` |
 | `--port` | 本地 App port，默认 `8765` |
 | `--db-path` | 自定义 SQLite 路径 |
+| `--config-path` | 自定义本地 App 配置文件路径 |
 | `--open-browser` | 启动后自动打开默认浏览器 |
 
 ## 项目结构
@@ -513,6 +514,8 @@ Local App MVP 支持：
 │   ├── fixtures/
 │   ├── test_core.py
 │   ├── test_cli_modes.py
+│   ├── test_dashboard.py
+│   ├── test_local_app.py
 │   └── test_parser_fixtures.py
 ├── README.md
 ├── README.en.md
