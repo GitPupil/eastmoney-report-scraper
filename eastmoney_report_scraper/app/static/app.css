@@ -101,6 +101,25 @@ th { background: #eee8dc; color: #33404a; font-size: 12px; position: sticky; top
 .analysis-kpi .value { margin-top: 4px; font-size: 19px; font-weight: 750; word-break: break-word; }
 .analysis-kpi .sub { margin-top: 3px; color: var(--muted); font-size: 13px; }
 .analysis-section-title { margin: 14px 0 10px; color: #33404a; font-size: 15px; font-weight: 750; }
+.ai-settings-status { min-height: 28px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: #fbfcfd; font-size: 12px; font-weight: 750; }
+.ai-settings-status.ready { color: var(--teal); background: #edf7f4; }
+.ai-grid { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+.ai-grid .ai-instruction { grid-column: span 3; }
+.ai-grid .ai-entity-picker, .ai-grid .ai-template-prompt { grid-column: span 2; }
+.ai-entity-picker { position: relative; }
+.ai-entity-picker select[hidden], .multi-select-menu[hidden] { display: none !important; }
+.multi-select-trigger { width: 100%; background: #fff; color: var(--text); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.multi-select-menu { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; width: 100%; max-height: 310px; overflow: hidden; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: 0 14px 28px rgba(28, 39, 48, 0.14); }
+.multi-select-menu input { width: 100%; margin-bottom: 8px; }
+.multi-select-options { max-height: 220px; overflow-y: auto; display: grid; gap: 4px; }
+.multi-select-option { display: flex; flex-direction: row; align-items: center; gap: 8px; min-height: 30px; padding: 4px 6px; border-radius: 6px; color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
+.multi-select-option:hover { background: #f3f6f8; }
+.multi-select-option input { width: auto; height: auto; margin: 0; }
+.multi-select-empty { padding: 10px 6px; color: var(--muted); font-size: 13px; }
+textarea { min-height: 80px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); font: inherit; resize: vertical; }
+.ai-actions { display: flex; gap: 8px; align-items: end; justify-content: flex-end; flex-wrap: wrap; }
+.ai-evidence-note { margin-top: 12px; color: var(--muted); font-size: 12px; }
+.ai-result { margin: 10px 0 0; min-height: 180px; max-height: 420px; overflow: auto; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #16212b; color: #eef7ff; white-space: pre-wrap; line-height: 1.65; font-family: ui-monospace, SFMono-Regular, Consolas, "Microsoft YaHei", monospace; font-size: 13px; }
 .chart-grid { display: grid; grid-template-columns: repeat(2, minmax(300px, 1fr)); gap: 12px; margin-top: 0; }
 .chart-grid.secondary { grid-template-columns: repeat(2, minmax(300px, 1fr)); }
 .chart-card { border: 1px solid var(--line); border-radius: 8px; background: #fbfaf7; padding: 12px; min-width: 0; min-height: 260px; }
@@ -117,4 +136,4 @@ th { background: #eee8dc; color: #33404a; font-size: 12px; position: sticky; top
 .mini-table .table-wrap { max-height: 260px; }
 @media (max-width: 1100px) { .global-filters { grid-template-columns: repeat(3, minmax(120px, 1fr)); } }
 @media (max-width: 900px) { .panel { grid-column: span 12; } .form, .kpis, .radar-metrics { grid-template-columns: repeat(2, 1fr); } .global-filters { grid-template-columns: repeat(2, minmax(120px, 1fr)); } .radar-home, .radar-list { grid-template-columns: 1fr; } header, .radar-title-row, .workspace-title { align-items: flex-start; flex-direction: column; } }
-@media (max-width: 900px) { .section-head { flex-direction: column; } .report-tools, .analysis-tools { justify-content: flex-start; width: 100%; } .report-tools label, .analysis-tools label { flex: 1 1 160px; } .report-tools .search { flex-basis: 100%; } .analysis-kpis { grid-template-columns: repeat(2, 1fr); } .chart-grid, .chart-grid.secondary { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .section-head { flex-direction: column; } .report-tools, .analysis-tools { justify-content: flex-start; width: 100%; } .report-tools label, .analysis-tools label { flex: 1 1 160px; } .report-tools .search { flex-basis: 100%; } .analysis-kpis { grid-template-columns: repeat(2, 1fr); } .ai-grid { grid-template-columns: 1fr; } .ai-grid .ai-instruction, .ai-grid .ai-entity-picker, .ai-grid .ai-template-prompt { grid-column: span 1; } .ai-actions { justify-content: flex-start; } .chart-grid, .chart-grid.secondary { grid-template-columns: 1fr; } }

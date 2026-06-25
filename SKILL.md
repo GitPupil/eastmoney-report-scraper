@@ -48,6 +48,7 @@ metadata:
 - 用户明确说“打开本地版、本地 App、Web UI、浏览器工作台、一键启动”时，才使用 Local App 入口。
 - OpenClaw workflow 的可视化需求优先用 `--dashboard-only` 生成或刷新静态 `DASHBOARD.html`，而不是启动 Local App。
 - Local App 与 CLI 共用同一个 `eastmoney_reports/` 输出目录；`eastmoney.db` 只是本地查询缓存，可以通过 `import-existing` 从 CSV/JSONL 重新生成。
+- Local App 提供可选 AI 分析接口；只有用户明确要求在本地 App 中配置或调用 AI 分析时，才使用 `/api/ai/settings`、`/api/ai/analyze` 或页面里的“AI 分析”面板。OpenClaw 默认仍读取结构化输出自行分析。
 
 ## When To Use
 

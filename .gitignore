@@ -8,6 +8,8 @@ __pycache__/
 .ruff_cache/
 .pycache_check/
 pytest-cache-files-*/
+.venv/
+uv.lock
 .ui_check/
 eastmoney_reports/
 eastmoney_reports_check/
@@ -15,6 +17,7 @@ eastmoney_reports_check/
 # Local research outputs, even when users customize the output directory.
 *.db
 local_app_config.json
+local_ai_config.json
 DASHBOARD.html
 run_manifest.jsonl
 report_index.csv

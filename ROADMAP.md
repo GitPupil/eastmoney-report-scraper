@@ -24,6 +24,11 @@
 - Local App commands: `app` and `import-existing`
 - SQLite local cache for reports, hotspots, coverage history, manifests, and run status
 - Local browser workspace for tasks, hotspots, reports, and dashboard data
+- Optional Local App AI settings and analysis API using bounded structured evidence
+- Token masking helpers and regression tests for local AI config
+- cc-switch current Claude provider import for Anthropic-compatible local AI analysis
+- Standalone `ai_connector.py` for cross-project AI provider integration reuse
+- AI P0 usability: built-in prompt templates, richer Local App scopes, multiple provider profiles, and test-connection diagnostics
 - GitHub Actions CI
 - Pytest fixtures and ruff development checks
 
@@ -41,8 +46,12 @@
 - Build structured opinion-change evidence for ratings, target prices, EPS, signal score, and same-broker continuity
 - Track company and industry narrative trends through keywords, theme tags, broker diffusion, and hotspot reason codes
 - Deepen consensus, divergence, and range-level synthesis using structured evidence
-- Add optional AI explanation for selected companies, industries, hotspots, and date ranges
-- Add token redaction helpers, local token config, and tests before enabling AI-token workflows
+- Add a CLI AI analysis command that reuses the Local App evidence builder
+
+AI priority sequence:
+- P0 usability: completed in the Local App with built-in prompt templates, richer scopes for all/company/industry/hotspot/date-range analysis, multiple provider profiles, provider compatibility tests, and a test-connection diagnostic.
+- P1 trust: evidence preview, evidence quality checks, structured AI output, source citations, and `AI_ANALYSIS_HISTORY.jsonl` caching.
+- P2 automation: batch AI analysis jobs, `AI_DAILY_BRIEF.md`, multi-model comparison, token/cost estimation, and rule-vs-AI consistency checks.
 
 ### 0.8.0: Market Data & Alpha Feedback
 - Add optional real-time market data API integration with user-provided local tokens

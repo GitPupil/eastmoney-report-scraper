@@ -177,6 +177,7 @@ For date-range jobs, the scraper also writes `RANGE_SUMMARY.md` and `RANGE_DASHB
 | `report_index.csv/xlsx` | Daily report index and structured fields |
 | `eastmoney.db` | Local App SQLite query cache |
 | `local_app_config.json` | Local App output directory, port, and defaults |
+| `local_ai_config.json` | Local AI endpoint, model, and token; git-ignored |
 
 ## Local App Mode
 
@@ -205,13 +206,16 @@ Open:
 http://127.0.0.1:8765
 ```
 
+The Local App also includes an optional AI analysis interface. Choose a prompt template, AI profile, endpoint, model, API format, and API token in the "AI 分析" panel, then generate explanations for all data, current filters, companies, industries, hotspots, date ranges, or keyword queries. Built-in templates cover general research, opinion changes, hotspot radar, company deep dives, industry trends, multi-industry comparison, and daily overview. The multi-entity picker supports a searchable dropdown with checkboxes, and "编辑 Prompt" lets users rewrite the selected template prompt before sending the request. Chat Completions, Text Completions, Responses-style payloads, and Anthropic-compatible payloads are supported. Use "测试连接" to probe the request URL, HTTP status, response type, and suggested fixes before running a full analysis. Leaving the token input blank preserves the saved token; use "清除 Token" to remove the current profile's token. If `cc-switch` is already configured, click "从 cc-switch 导入" to import the current Claude provider's `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and `ANTHROPIC_MODEL` into a local profile. Tokens are stored only in the git-ignored `local_ai_config.json`; API responses and the UI only show masked token status.
+
+The reusable AI provider layer lives in `eastmoney_report_scraper/ai_connector.py` and only depends on the Python standard library, so other projects can copy or import that single file. Eastmoney-specific evidence building and prompts stay in `eastmoney_report_scraper/ai.py`.
+
 ## Planned Integrations
 
 The following items are planned and are not released as current features yet:
 
 - Real-time data API: allow users to provide local market-data tokens for price, index, sector-performance, and post-signal feedback analysis. Tokens should stay in the local runtime or a git-ignored local config file, and must not be written to logs, Markdown/CSV/JSONL/XLSX outputs, SQLite rows, dashboard HTML, or exception messages.
-- AI analysis: allow users to provide model API tokens for deeper summaries, comparisons, and opinion-change explanations across selected reports, companies, industries, or date ranges. Tokens must be masked in UI/CLI diagnostics and excluded from exported research artifacts.
-- Before enabling token-based integrations, add token-redaction helpers, config-loading rules, and regression tests to prevent accidental leakage through debug output or generated files.
+- AI analysis follow-ups: the Local App now has templates, provider profiles, connection diagnostics, and multi-scope analysis. Next steps are evidence preview, structured output, source citations, history caching, and a CLI entrypoint.
 
 ## CLI Arguments
 

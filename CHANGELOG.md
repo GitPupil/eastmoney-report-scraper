@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+- Optional Local App AI settings and analysis endpoints backed by bounded dashboard evidence.
+- Local AI config file support with masked UI/API settings and regression tests for token redaction.
+- cc-switch import for the current Claude provider plus Anthropic-compatible AI request support.
+- Standalone `ai_connector.py` for reusing the AI provider integration in other projects.
+- Built-in Local App AI prompt templates for general research, opinion changes, hotspot radar, company deep dives, industry trends, multi-industry comparison, and daily overview.
+- Multiple local AI provider profiles with masked token handling, active-profile switching, and cc-switch import into profiles.
+- Local App AI scopes for all data, current filters, companies, industries, hotspots, date ranges, and keyword queries.
+- AI provider test-connection diagnostics covering request URL, response kind, HTTP status, and suggested fixes.
+
 ### Changed
 - Local App background fetch tasks now call the shared `core` orchestration layer directly while the CLI remains an entrypoint wrapper.
 

@@ -392,6 +392,7 @@ eastmoney_reports/
 | `report_index.csv/xlsx` | 单日研报索引和结构化字段 |
 | `eastmoney.db` | 本地 App SQLite 查询缓存 |
 | `local_app_config.json` | 本地 App 输出目录、端口和默认参数 |
+| `local_ai_config.json` | 本地 AI 接口地址、模型和 token，已被 Git 忽略 |
 
 ## Local App Mode
 
@@ -425,17 +426,33 @@ Local App MVP 支持：
 - 导入已有输出到 SQLite。
 - 查看最近任务、热点和研报明细。
 - 从页面发起单日/区间抓取。
+- 配置可选 AI 分析接口，对全部数据、当前筛选、公司、行业、热点、日期区间或关键词生成解释。
 - 通过 `/api/health`、`/api/reports`、`/api/hotspots`、`/api/dashboard-data` 读取本地数据。
+- 通过 `/api/ai/settings`、`/api/ai/test-connection` 和 `/api/ai/analyze` 使用本地保存的 AI profile 做结构化证据分析。
 - Windows 新电脑可双击 `start_local_app.bat` 一键安装依赖、导入已有输出、启动服务并打开浏览器。
 - macOS / Linux 可运行 `start_local_app.sh`，脚本会创建 `.venv`、安装依赖、导入已有输出、启动服务并打开浏览器。
+
+AI 分析接口说明：
+
+- 在 Local App 的“AI 分析”面板选择分析模板、AI Profile、接口地址、模型和 API Token。
+- 内置模板包括：通用研报解释、观点变化趋势、热点雷达、单公司深挖、单行业趋势、多行业比较和日度总览。
+- “多选对象”支持下拉搜索和复选框选择，不需要使用 Ctrl 多选。
+- 点击“编辑 Prompt”可以改写当前模板 prompt；点击“恢复 Prompt”可回到内置模板。
+- 可以保存多个 provider/token profile，并在页面上快速切换；页面和 API 只显示脱敏 token。
+- Token 输入框留空表示保留已保存 token；如果要删除当前 Profile 的 token，请点击“清除 Token”。
+- “测试连接”会返回 request URL、HTTP 状态、响应类型和建议修复，不会触发正式研报分析。
+- 如果你已经用 `cc-switch` 配好了 Claude provider，可直接点击“从 cc-switch 导入”，系统会读取当前 Claude provider 的 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN` 和 `ANTHROPIC_MODEL`，并自动使用 `Anthropic Messages(cc-switch)` 格式。
+- 当前实现兼容 OpenAI-style Chat Completions 接口，例如 `/v1/chat/completions`；也可在“接口格式”中选择 `Anthropic Messages(cc-switch)`、`Text Completions(prompt)` 或 `Responses(input)`。
+- token 只保存在输出目录下的 `local_ai_config.json`，页面和 API 只显示脱敏状态。
+- AI 请求使用结构化 evidence：研报摘要、热点信号、观点变化、主题和评分原因，不会把本地整篇 Markdown 直接导出给模型。
+- 通用 AI 接入层已单独放在 `eastmoney_report_scraper/ai_connector.py`，只依赖 Python 标准库；其他项目可以直接复用这个文件。研报项目自己的 evidence 构建和提示词保留在 `eastmoney_report_scraper/ai.py`。
 
 ## 未来集成计划
 
 以下能力尚未作为当前版本功能发布，已进入 TODO / roadmap：
 
 - 实时数据接口 API：计划支持用户在本地 App 或 CLI 配置中提交行情/数据源 token，用于补充价格、指数、板块表现和研报信号后的市场反馈。token 只应保留在本地运行环境或被 Git 忽略的本地配置中，不写入日志、Markdown/CSV/JSONL/XLSX 输出、SQLite 数据行、Dashboard HTML 或异常信息。
-- AI 分析：计划支持用户提供模型 API token，对选中的研报、公司、行业或时间区间做进一步总结、对比和观点变化解释。token 必须在 UI/CLI 诊断中脱敏显示，并从所有研究导出文件中排除。
-- 实现这些能力前，需要先补齐 token 脱敏 helper、配置加载规则和回归测试，避免 token 被调试输出或导出文件带出。
+- AI 分析后续增强：当前已支持 Local App 里的模板、profile、连接诊断和多范围分析；下一步会补 evidence 预览、结构化输出、来源引用、历史缓存和 CLI 入口。
 
 ## CLI 参数
 

@@ -8,6 +8,8 @@ const filterIds = [
 let reportPage = 1;
 let fetchTuningTouched = false;
 let analysisData = { reports: [], hotspots: [], entityDrilldowns: [], opinionTrends: [], meta: {} };
+let aiSettings = { hasToken: false, maskedToken: "", baseUrl: "", model: "", apiFormat: "auto", timeout: 60 };
+let aiTemplatePromptDirty = false;
 let latestHealth = null;
 let latestRuns = { items: [] };
 let filtersInitialized = false;
@@ -624,6 +626,8 @@ function bindEntityButtons() {
       renderAnalysisOptions();
       $("analysisEntity").value = key;
       renderAnalysis();
+      const entity = selectedAnalysisEntity();
+      if (entity) $("aiQuery").value = entity.label || entity.stockCode || "";
       $("analysisPanel").scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
@@ -636,11 +640,378 @@ function renderDashboardViews() {
   renderHotspotsTable(hotspots);
   renderGlobalOpinion(opinions);
   renderAnalysisOptions();
+  populateAiEntityOptions();
   renderAnalysis();
   renderReports(reports);
   bindEntityButtons();
   const meta = (analysisData && analysisData.meta) || {};
   $("dashboardFooter").textContent = `显示 ${reports.length} 篇研报，${hotspots.length} 条热点信号，索引文件 ${meta.reportIndexCount || 0} 个`;
+}
+function activeAiProfile() {
+  const profiles = aiSettings.profiles || [];
+  return profiles.find((profile) => profile.id === aiSettings.activeProfileId) || profiles[0] || aiSettings;
+}
+function fillAiProfileForm(profile) {
+  const safeProfile = profile || {};
+  $("aiProfile").value = safeProfile.id || aiSettings.activeProfileId || "default";
+  $("aiProfileName").value = safeProfile.name || safeProfile.id || "Default";
+  $("aiProvider").value = safeProfile.provider || "openai-compatible";
+  $("aiBaseUrl").value = safeProfile.baseUrl || "";
+  $("aiApiFormat").value = safeProfile.apiFormat || "auto";
+  $("aiModel").value = safeProfile.model || "";
+  $("aiTimeout").value = safeProfile.timeout || 60;
+  $("aiToken").value = "";
+}
+function renderAiProfiles() {
+  const profiles = aiSettings.profiles || [];
+  if (!profiles.length) {
+    $("aiProfile").innerHTML = `<option value="default">Default</option>`;
+    return;
+  }
+  $("aiProfile").innerHTML = profiles.map((profile) => {
+    const active = profile.id === aiSettings.activeProfileId ? " *" : "";
+    return `<option value="${esc(profile.id)}">${esc(profile.name || profile.id)}${active}</option>`;
+  }).join("");
+}
+function renderAiTemplates(settings) {
+  const templates = (settings && settings.templates) || [];
+  if (!templates.length) return;
+  const current = $("aiTemplate").value || "general_research";
+  $("aiTemplate").innerHTML = templates.map((template) => (
+    `<option value="${esc(template.id)}">${esc(template.name || template.id)}</option>`
+  )).join("");
+  $("aiTemplate").value = templates.some((template) => template.id === current) ? current : "general_research";
+  syncAiTemplatePrompt(true);
+}
+function selectedAiTemplate() {
+  const templates = aiSettings.templates || [];
+  return templates.find((template) => template.id === $("aiTemplate").value) || templates[0] || {};
+}
+function syncAiTemplatePrompt(force = false) {
+  const template = selectedAiTemplate();
+  if (!template.instruction) return;
+  if (force || !aiTemplatePromptDirty) {
+    $("aiTemplatePrompt").value = template.instruction || "";
+    aiTemplatePromptDirty = false;
+  }
+}
+function toggleAiPromptEditor() {
+  const wrap = $("aiTemplatePromptWrap");
+  const willShow = wrap.hidden;
+  wrap.hidden = !willShow;
+  $("aiEditPromptBtn").textContent = willShow ? "隐藏 Prompt" : "编辑 Prompt";
+  if (willShow) {
+    syncAiTemplatePrompt(false);
+    $("aiTemplatePrompt").focus();
+  }
+}
+function resetAiTemplatePrompt() {
+  aiTemplatePromptDirty = false;
+  syncAiTemplatePrompt(true);
+  $("aiTemplatePromptWrap").hidden = false;
+  $("aiEditPromptBtn").textContent = "隐藏 Prompt";
+  $("aiTemplatePrompt").focus();
+}
+function populateAiEntityOptions() {
+  const el = $("aiEntityKeys");
+  if (!el) return;
+  const selected = new Set([...el.selectedOptions].map((option) => option.value));
+  const entities = allEntities();
+  el.innerHTML = entities.map((entity) => {
+    const typeLabel = entity.entityType === "company" ? "公司" : "行业";
+    const detail = entity.stockCode ? ` / ${entity.stockCode}` : "";
+    return `<option value="${esc(entity.entityKey)}">${esc(typeLabel)}：${esc(entity.label || entity.industryName || entity.stockCode)}${esc(detail)}</option>`;
+  }).join("");
+  [...el.options].forEach((option) => { option.selected = selected.has(option.value); });
+  renderAiEntityCheckboxes();
+  updateAiEntityDropdownLabel();
+  const dates = dashboardDates();
+  if (dates.length && !$("aiStartDate").value && !$("aiEndDate").value) {
+    $("aiStartDate").value = dates[0];
+    $("aiEndDate").value = dates[dates.length - 1];
+  }
+}
+function aiEntityOptionLabel(option) {
+  return option ? option.textContent || option.value : "";
+}
+function selectedAiEntityOptions() {
+  return [...$("aiEntityKeys").selectedOptions];
+}
+function updateAiEntityDropdownLabel() {
+  const selected = selectedAiEntityOptions();
+  if (!selected.length) {
+    $("aiEntityDropdownBtn").textContent = "选择公司 / 行业";
+    return;
+  }
+  const names = selected.slice(0, 2).map(aiEntityOptionLabel).join("，");
+  $("aiEntityDropdownBtn").textContent = selected.length > 2 ? `${names} 等 ${selected.length} 个` : names;
+}
+function renderAiEntityCheckboxes() {
+  const select = $("aiEntityKeys");
+  const container = $("aiEntityOptions");
+  if (!select || !container) return;
+  const search = ($("aiEntitySearch").value || "").trim().toLowerCase();
+  const options = [...select.options].filter((option) => !search || option.textContent.toLowerCase().includes(search));
+  if (!options.length) {
+    container.innerHTML = `<div class="multi-select-empty">没有匹配对象</div>`;
+    return;
+  }
+  container.innerHTML = options.map((option) => (
+    `<label class="multi-select-option"><input type="checkbox" data-ai-entity-key="${esc(option.value)}" ${option.selected ? "checked" : ""}>${esc(option.textContent)}</label>`
+  )).join("");
+  container.querySelectorAll("[data-ai-entity-key]").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const option = [...select.options].find((item) => item.value === checkbox.dataset.aiEntityKey);
+      if (option) option.selected = checkbox.checked;
+      updateAiEntityDropdownLabel();
+    });
+  });
+}
+function toggleAiEntityMenu(event) {
+  if (event) event.stopPropagation();
+  const menu = $("aiEntityMenu");
+  menu.hidden = !menu.hidden;
+  if (!menu.hidden) {
+    $("aiEntitySearch").focus();
+    renderAiEntityCheckboxes();
+  }
+}
+function closeAiEntityMenu() {
+  $("aiEntityMenu").hidden = true;
+}
+function renderAiSettings(settings) {
+  aiSettings = settings || aiSettings;
+  renderAiProfiles();
+  renderAiTemplates(aiSettings);
+  fillAiProfileForm(activeAiProfile());
+  populateAiEntityOptions();
+  const label = aiSettings.hasToken ? `AI 已配置 ${aiSettings.maskedToken || ""}` : "AI 未配置";
+  $("aiSettingsStatus").textContent = label;
+  $("aiSettingsStatus").className = `ai-settings-status ${aiSettings.hasToken ? "ready" : ""}`.trim();
+}
+async function loadAiSettings(options = {}) {
+  const silent = Boolean(options.silent);
+  try {
+    const settings = await api("/api/ai/settings");
+    renderAiSettings(settings);
+    return true;
+  } catch (error) {
+    if (!silent) setStatus(`AI 设置读取失败：${error.message}`, "error");
+    return false;
+  }
+}
+async function saveAiSettings() {
+  const payload = {
+    profileId: $("aiProfile").value || "default",
+    profileName: $("aiProfileName").value.trim() || $("aiProfile").value || "Default",
+    provider: $("aiProvider").value,
+    baseUrl: $("aiBaseUrl").value.trim(),
+    apiFormat: $("aiApiFormat").value,
+    model: $("aiModel").value.trim(),
+    apiToken: $("aiToken").value.trim(),
+    timeout: Number($("aiTimeout").value || 60),
+  };
+  $("aiSaveBtn").disabled = true;
+  setStatus("正在保存 AI 设置...");
+  try {
+    const result = await api("/api/ai/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    renderAiSettings(result.settings || result);
+    setStatus("AI 设置已保存", "good");
+  } catch (error) {
+    setStatus(`AI 设置保存失败：${error.message}`, "error");
+  } finally {
+    $("aiSaveBtn").disabled = false;
+  }
+}
+async function clearAiToken() {
+  const profileId = $("aiProfile").value || "default";
+  $("aiClearTokenBtn").disabled = true;
+  setStatus("正在清除 AI Token...");
+  try {
+    const result = await api("/api/ai/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId, clearToken: true }),
+    });
+    renderAiSettings(result.settings || result);
+    $("aiToken").value = "";
+    $("aiResult").textContent = "当前 Profile 的 API Token 已清除。";
+    setStatus("AI Token 已清除", "good");
+  } catch (error) {
+    setStatus(`AI Token 清除失败：${error.message}`, "error");
+  } finally {
+    $("aiClearTokenBtn").disabled = false;
+  }
+}
+async function switchAiProfile() {
+  const profileId = $("aiProfile").value;
+  const profile = (aiSettings.profiles || []).find((item) => item.id === profileId);
+  fillAiProfileForm(profile);
+  if (!profileId || profileId === aiSettings.activeProfileId) return;
+  try {
+    const result = await api("/api/ai/profiles/active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId }),
+    });
+    renderAiSettings(result.settings || result);
+    setStatus(`已切换 AI Profile：${profile ? profile.name || profile.id : profileId}`, "good");
+  } catch (error) {
+    setStatus(`AI Profile 切换失败：${error.message}`, "error");
+  }
+}
+function newAiProfile() {
+  const profileId = `profile-${Date.now()}`;
+  aiSettings = {
+    ...aiSettings,
+    activeProfileId: profileId,
+    profiles: [
+      ...(aiSettings.profiles || []),
+      {
+        id: profileId,
+        name: "New Profile",
+        provider: "openai-compatible",
+        baseUrl: "",
+        model: "",
+        apiFormat: "auto",
+        hasToken: false,
+        maskedToken: "",
+        timeout: 60,
+      },
+    ],
+  };
+  renderAiSettings(aiSettings);
+  $("aiToken").value = "";
+  $("aiProfileName").focus();
+}
+async function deleteAiProfile() {
+  const profileId = $("aiProfile").value;
+  if (!profileId || profileId === "default") {
+    setStatus("Default Profile 不能删除", "error");
+    return;
+  }
+  $("aiDeleteProfileBtn").disabled = true;
+  try {
+    const result = await api("/api/ai/profiles/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId }),
+    });
+    renderAiSettings(result.settings || result);
+    setStatus("AI Profile 已删除", "good");
+  } catch (error) {
+    setStatus(`AI Profile 删除失败：${error.message}`, "error");
+  } finally {
+    $("aiDeleteProfileBtn").disabled = false;
+  }
+}
+async function importCcSwitchSettings() {
+  $("aiImportCcSwitchBtn").disabled = true;
+  setStatus("正在读取 cc-switch 当前 Claude 配置...");
+  try {
+    const result = await api("/api/ai/import-cc-switch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        overwriteProfileId: $("aiProfile").value || "",
+        profileName: $("aiProfileName").value.trim() || "cc-switch",
+      }),
+    });
+    renderAiSettings(result.settings || result);
+    const source = result.ccSwitch || {};
+    setStatus(`已导入 cc-switch：${source.providerName || "Claude provider"} / ${source.model || ""}`, "good");
+  } catch (error) {
+    setStatus(`cc-switch 导入失败：${error.message}`, "error");
+  } finally {
+    $("aiImportCcSwitchBtn").disabled = false;
+  }
+}
+function readAiEntityKeys() {
+  return [...$("aiEntityKeys").selectedOptions].map((option) => option.value).filter(Boolean);
+}
+async function testAiConnection() {
+  $("aiTestBtn").disabled = true;
+  $("aiResult").textContent = "正在测试 AI 连接...";
+  try {
+    const result = await api("/api/ai/test-connection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        profileId: $("aiProfile").value || "default",
+        profileName: $("aiProfileName").value.trim() || $("aiProfile").value || "Default",
+        provider: $("aiProvider").value,
+        baseUrl: $("aiBaseUrl").value.trim(),
+        apiFormat: $("aiApiFormat").value,
+        model: $("aiModel").value.trim(),
+        apiToken: $("aiToken").value.trim(),
+        timeout: Number($("aiTimeout").value || 60),
+      }),
+    });
+    $("aiResult").textContent = JSON.stringify(result, null, 2);
+    setStatus(result.ok ? "AI 连接测试成功" : "AI 连接测试失败", result.ok ? "good" : "error");
+  } catch (error) {
+    $("aiResult").textContent = `AI 连接测试失败：${error.message}`;
+    setStatus(`AI 连接测试失败：${error.message}`, "error");
+  } finally {
+    $("aiTestBtn").disabled = false;
+  }
+}
+function aiEvidenceSummary(evidence) {
+  const counts = (evidence && evidence.sampleCounts) || {};
+  const summary = (evidence && evidence.selectedScopeSummary) || {};
+  const entity = (evidence && evidence.entity) || {};
+  const label = entity.label || evidence.query || summary.scope || "当前筛选结果";
+  return `${label}：研报 ${counts.reports || 0}，公司 ${summary.companyCount || 0}，行业 ${summary.industryCount || 0}，券商 ${summary.brokerCount || 0}，热点 ${counts.hotspots || 0}，观点变化 ${counts.opinionTrends || 0}`;
+}
+async function runAiAnalysis() {
+  const entity = selectedAnalysisEntity();
+  const scope = $("aiScope").value;
+  const entityKeys = readAiEntityKeys();
+  const query = $("aiQuery").value.trim() || (entity ? entity.label || entity.stockCode || "" : "");
+  if (scope === "selected" && !entity && !query) {
+    setStatus("请先选择研究对象，或把 AI 分析范围改为关键词/对象。", "error");
+    return;
+  }
+  const payload = {
+    scope,
+    templateId: $("aiTemplate").value || "general_research",
+    templatePrompt: aiTemplatePromptDirty ? $("aiTemplatePrompt").value.trim() : "",
+    entityKey: scope === "selected" && entity ? entity.entityKey : (entityKeys[0] || ""),
+    entityKeys,
+    startDate: $("aiStartDate").value,
+    endDate: $("aiEndDate").value,
+    query,
+    filters: readFilters(),
+    instruction: $("aiInstruction").value,
+    maxReports: 8,
+  };
+  $("aiAnalyzeBtn").disabled = true;
+  $("aiResult").textContent = "AI 分析中...";
+  $("aiEvidenceNote").textContent = "正在整理结构化 evidence...";
+  try {
+    const result = await api("/api/ai/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    $("aiEvidenceNote").textContent = aiEvidenceSummary(result.evidence || {});
+    if (!result.ok) {
+      $("aiResult").textContent = `AI 分析失败：${result.error || "未知错误"}`;
+      setStatus("AI 分析失败", "error");
+      return;
+    }
+    $("aiResult").textContent = result.analysis || "";
+    setStatus("AI 分析完成", "good");
+  } catch (error) {
+    $("aiResult").textContent = `AI 分析失败：${error.message}`;
+    setStatus(`AI 分析失败：${error.message}`, "error");
+  } finally {
+    $("aiAnalyzeBtn").disabled = false;
+  }
 }
 async function loadAnalysis(options = {}) {
   const silent = Boolean(options.silent);
@@ -714,6 +1085,22 @@ $("refreshBtn").addEventListener("click", refreshAll);
 $("analysisRefreshBtn").addEventListener("click", () => loadAnalysis());
 $("analysisEntity").addEventListener("change", renderAnalysis);
 $("analysisSearch").addEventListener("input", () => { renderAnalysisOptions(); renderAnalysis(); });
+$("aiProfile").addEventListener("change", switchAiProfile);
+$("aiTemplate").addEventListener("change", () => { aiTemplatePromptDirty = false; syncAiTemplatePrompt(true); });
+$("aiTemplatePrompt").addEventListener("input", () => { aiTemplatePromptDirty = true; });
+$("aiEditPromptBtn").addEventListener("click", toggleAiPromptEditor);
+$("aiResetPromptBtn").addEventListener("click", resetAiTemplatePrompt);
+$("aiEntityDropdownBtn").addEventListener("click", toggleAiEntityMenu);
+$("aiEntitySearch").addEventListener("input", renderAiEntityCheckboxes);
+$("aiEntityMenu").addEventListener("click", (event) => event.stopPropagation());
+document.addEventListener("click", closeAiEntityMenu);
+$("aiNewProfileBtn").addEventListener("click", newAiProfile);
+$("aiDeleteProfileBtn").addEventListener("click", deleteAiProfile);
+$("aiImportCcSwitchBtn").addEventListener("click", importCcSwitchSettings);
+$("aiSaveBtn").addEventListener("click", saveAiSettings);
+$("aiClearTokenBtn").addEventListener("click", clearAiToken);
+$("aiTestBtn").addEventListener("click", testAiConnection);
+$("aiAnalyzeBtn").addEventListener("click", runAiAnalysis);
 filterIds.forEach((id) => $(id).addEventListener("input", () => { reportPage = 1; renderDashboardViews(); }));
 $("resetFiltersBtn").addEventListener("click", resetGlobalFilters);
 $("reportLimit").addEventListener("change", () => { reportPage = 1; renderDashboardViews(); });
@@ -765,5 +1152,6 @@ if ($("qtype").value === "2") {
   $("concurrency").value = "2";
   $("jitter").value = "0.5";
 }
+loadAiSettings({ silent: true });
 safeRefresh({ silent: true });
 setInterval(() => safeRefresh({ silent: true }), 5000);

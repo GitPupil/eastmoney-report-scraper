@@ -43,6 +43,7 @@
             <a href="#filtersPanel">全局筛选 <span>日期 / 主题</span></a>
             <a href="#overviewPanel">趋势总览 <span>热点 / 质量</span></a>
             <a href="#analysisPanel">研究分析 <span>趋势 / 观点</span></a>
+            <a href="#aiPanel">AI 分析 <span>解释 / 对比</span></a>
             <a href="#reportsPanel">研报明细 <span>搜索 / 预览</span></a>
           </div>
         </div>
@@ -139,6 +140,80 @@
           <h2>最新研报</h2>
           <div class="table-wrap"><table id="analysisLatestReports"></table></div>
         </div>
+      </article>
+      <article class="panel wide" id="aiPanel">
+        <div class="section-head">
+          <div>
+            <h2>AI 分析</h2>
+            <div class="muted">基于结构化研报证据解释热点、观点变化、分歧和后续观察。</div>
+          </div>
+          <div class="ai-settings-status" id="aiSettingsStatus">AI 未配置</div>
+        </div>
+        <div class="ai-grid">
+          <label>Profile<select id="aiProfile"><option value="default">Default</option></select></label>
+          <label>Profile 名称<input id="aiProfileName" placeholder="Default"></label>
+          <label>Provider
+            <select id="aiProvider">
+              <option value="openai-compatible">OpenAI compatible</option>
+              <option value="anthropic-compatible">Anthropic compatible</option>
+            </select>
+          </label>
+          <label>分析模板<select id="aiTemplate"><option value="general_research">通用研报解释</option></select></label>
+          <label>接口地址<input id="aiBaseUrl" placeholder="https://api.openai.com/v1/chat/completions"></label>
+          <label>接口格式
+            <select id="aiApiFormat">
+              <option value="auto">Auto</option>
+              <option value="chat">Chat Completions(messages)</option>
+              <option value="completions">Text Completions(prompt)</option>
+              <option value="responses">Responses(input)</option>
+              <option value="anthropic">Anthropic Messages(cc-switch)</option>
+            </select>
+          </label>
+          <label>模型<input id="aiModel" placeholder="gpt-4o-mini"></label>
+          <label>API Token<input id="aiToken" type="password" autocomplete="off" placeholder="留空则保留已保存 token"></label>
+          <label>超时秒<input id="aiTimeout" type="number" min="5" value="60"></label>
+          <label>分析范围
+            <select id="aiScope">
+              <option value="selected">当前研究对象</option>
+              <option value="all">全部已抓取数据</option>
+              <option value="current_filters">当前全局筛选结果</option>
+              <option value="company">单公司</option>
+              <option value="companies">多公司</option>
+              <option value="industry">单行业</option>
+              <option value="industries">多行业</option>
+              <option value="hotspot">单热点</option>
+              <option value="hotspots">多热点</option>
+              <option value="date_range">日期区间</option>
+              <option value="query">关键词/对象</option>
+            </select>
+          </label>
+          <label>关键词/对象<input id="aiQuery" placeholder="可填公司、代码、行业或主题"></label>
+          <label class="ai-entity-picker">多选对象
+            <button type="button" class="multi-select-trigger" id="aiEntityDropdownBtn">选择公司 / 行业</button>
+            <div class="multi-select-menu" id="aiEntityMenu" hidden>
+              <input id="aiEntitySearch" placeholder="搜索公司、代码或行业">
+              <div class="multi-select-options" id="aiEntityOptions"></div>
+            </div>
+            <select id="aiEntityKeys" multiple hidden></select>
+          </label>
+          <label>开始日期<input id="aiStartDate" type="date"></label>
+          <label>结束日期<input id="aiEndDate" type="date"></label>
+          <label class="ai-template-prompt" id="aiTemplatePromptWrap" hidden>模板 Prompt<textarea id="aiTemplatePrompt" rows="5" placeholder="可在这里改写当前模板 prompt"></textarea></label>
+          <label class="ai-instruction">额外要求<textarea id="aiInstruction" rows="3" placeholder="例如：重点比较评级和目标价是否同步上修"></textarea></label>
+          <div class="ai-actions">
+            <button class="ghost" id="aiNewProfileBtn">新建 Profile</button>
+            <button class="ghost" id="aiDeleteProfileBtn">删除 Profile</button>
+            <button class="ghost" id="aiEditPromptBtn">编辑 Prompt</button>
+            <button class="ghost" id="aiResetPromptBtn">恢复 Prompt</button>
+            <button class="ghost" id="aiImportCcSwitchBtn">从 cc-switch 导入</button>
+            <button class="secondary" id="aiSaveBtn">保存 AI 设置</button>
+            <button class="secondary" id="aiClearTokenBtn">清除 Token</button>
+            <button class="secondary" id="aiTestBtn">测试连接</button>
+            <button id="aiAnalyzeBtn">生成 AI 分析</button>
+          </div>
+        </div>
+        <div class="ai-evidence-note" id="aiEvidenceNote">会优先使用当前研究对象和全局筛选后的研报、热点、观点变化数据。</div>
+        <pre class="ai-result" id="aiResult">配置 token 后，可对选中的公司、行业、热点或筛选结果生成解释。</pre>
       </article>
       <article class="panel wide" id="reportsPanel">
         <div class="section-head">

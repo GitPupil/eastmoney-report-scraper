@@ -1,5 +1,6 @@
 import csv
 import json
+import sqlite3
 import subprocess
 import time
 from pathlib import Path
@@ -364,6 +365,7 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'id="meta" hidden' in _INDEX_HTML
     assert "交易雷达首页 / 研究工作台" in _INDEX_HTML
     assert "近期研报信号" in _INDEX_HTML
+    assert 'href="#aiPanel"' in _INDEX_HTML
     assert 'id="radarMetrics"' in _INDEX_HTML
     assert 'id="radarList"' in _INDEX_HTML
     assert 'id="radarFocus"' in _INDEX_HTML
@@ -422,6 +424,59 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert "function loadAnalysis" in app_js
     assert "function filteredAnalysisEntities" in app_js
     assert 'api("/api/dashboard-data")' in app_js
+    assert 'id="aiPanel"' in _INDEX_HTML
+    assert 'id="aiProfile"' in _INDEX_HTML
+    assert 'id="aiProvider"' in _INDEX_HTML
+    assert 'id="aiTemplate"' in _INDEX_HTML
+    assert 'id="aiEditPromptBtn"' in _INDEX_HTML
+    assert 'id="aiResetPromptBtn"' in _INDEX_HTML
+    assert 'id="aiTemplatePromptWrap"' in _INDEX_HTML
+    assert 'id="aiTemplatePrompt"' in _INDEX_HTML
+    assert 'id="aiBaseUrl"' in _INDEX_HTML
+    assert 'id="aiApiFormat"' in _INDEX_HTML
+    assert 'id="aiEntityDropdownBtn"' in _INDEX_HTML
+    assert 'id="aiEntitySearch"' in _INDEX_HTML
+    assert 'id="aiEntityOptions"' in _INDEX_HTML
+    assert 'id="aiEntityKeys"' in _INDEX_HTML
+    assert 'id="aiStartDate"' in _INDEX_HTML
+    assert 'id="aiEndDate"' in _INDEX_HTML
+    assert 'id="aiNewProfileBtn"' in _INDEX_HTML
+    assert 'id="aiDeleteProfileBtn"' in _INDEX_HTML
+    assert 'id="aiClearTokenBtn"' in _INDEX_HTML
+    assert 'id="aiTestBtn"' in _INDEX_HTML
+    assert 'id="aiImportCcSwitchBtn"' in _INDEX_HTML
+    assert 'id="aiModel"' in _INDEX_HTML
+    assert 'id="aiToken"' in _INDEX_HTML
+    assert 'id="aiAnalyzeBtn"' in _INDEX_HTML
+    assert 'id="aiResult"' in _INDEX_HTML
+    assert "function loadAiSettings" in app_js
+    assert "function runAiAnalysis" in app_js
+    assert "function importCcSwitchSettings" in app_js
+    assert "function testAiConnection" in app_js
+    assert "function clearAiToken" in app_js
+    assert "function populateAiEntityOptions" in app_js
+    assert "function renderAiEntityCheckboxes" in app_js
+    assert "function toggleAiPromptEditor" in app_js
+    assert "function resetAiTemplatePrompt" in app_js
+    assert 'api("/api/ai/settings")' in app_js
+    assert 'api("/api/ai/analyze"' in app_js
+    assert 'api("/api/ai/import-cc-switch"' in app_js
+    assert 'api("/api/ai/test-connection"' in app_js
+    assert 'api("/api/ai/profiles/active"' in app_js
+    assert 'api("/api/ai/profiles/delete"' in app_js
+    assert 'apiFormat: $("aiApiFormat").value' in app_js
+    assert 'templateId: $("aiTemplate").value || "general_research"' in app_js
+    assert 'templatePrompt: aiTemplatePromptDirty ? $("aiTemplatePrompt").value.trim() : ""' in app_js
+    assert "clearToken: true" in app_js
+    assert "data-ai-entity-key" in app_js
+    assert "document.addEventListener(\"click\", closeAiEntityMenu)" in app_js
+    assert ".ai-result" in app_css
+    assert ".multi-select-menu" in app_css
+    assert ".multi-select-menu[hidden]" in app_css
+    assert "position: absolute" in app_css
+    assert "max-height: 310px" in app_css
+    assert "overflow-y: auto" in app_css
+    assert "text-overflow: ellipsis" in app_css
     assert 'data-tip="每个日期最多抓取多少篇研报' in _INDEX_HTML
     assert "选择全部时，会先合并个股和行业列表再应用该限制" in _INDEX_HTML
     assert "let fetchTuningTouched = false;" in app_js
@@ -453,6 +508,31 @@ def test_local_app_serves_split_frontend_assets(tmp_path: Path):
     index_response = client.get("/")
     css_response = client.get("/static/app.css")
     js_response = client.get("/static/app.js")
+    ai_settings_response = client.get("/api/ai/settings")
+    saved_ai_response = client.post(
+        "/api/ai/settings",
+        json={"apiToken": "secret-token-abcdef", "model": "mock-model", "apiFormat": "completions"},
+    )
+    clear_ai_token_response = client.post(
+        "/api/ai/settings",
+        json={"profileId": "default", "clearToken": True},
+    )
+    second_profile_response = client.post(
+        "/api/ai/settings",
+        json={
+            "profileId": "second",
+            "profileName": "Second",
+            "apiToken": "second-token-abcdef",
+            "model": "second-model",
+            "apiFormat": "responses",
+        },
+    )
+    active_response = client.post("/api/ai/profiles/active", json={"profileId": "default"})
+    delete_response = client.post("/api/ai/profiles/delete", json={"profileId": "second"})
+    test_connection_response = client.post(
+        "/api/ai/test-connection",
+        json={"profileId": "empty-profile", "profileName": "Empty", "model": "mock-model", "apiToken": ""},
+    )
 
     assert index_response.status_code == 200
     assert 'href="/static/app.css"' in index_response.text
@@ -461,6 +541,81 @@ def test_local_app_serves_split_frontend_assets(tmp_path: Path):
     assert ".chart-grid" in css_response.text
     assert js_response.status_code == 200
     assert "function renderDashboardViews" in js_response.text
+    assert ai_settings_response.status_code == 200
+    assert ai_settings_response.json()["hasToken"] is False
+    assert ai_settings_response.json()["activeProfileId"] == "default"
+    assert ai_settings_response.json()["profiles"][0]["id"] == "default"
+    assert any(template["id"] == "general_research" for template in ai_settings_response.json()["templates"])
+    assert saved_ai_response.status_code == 200
+    assert "secret-token-abcdef" not in saved_ai_response.text
+    assert saved_ai_response.json()["settings"]["maskedToken"] == "sec...cdef"
+    assert saved_ai_response.json()["settings"]["apiFormat"] == "completions"
+    assert clear_ai_token_response.status_code == 200
+    assert clear_ai_token_response.json()["settings"]["hasToken"] is False
+    assert clear_ai_token_response.json()["settings"]["maskedToken"] == ""
+    assert "secret-token-abcdef" not in clear_ai_token_response.text
+    assert second_profile_response.json()["settings"]["activeProfileId"] == "second"
+    assert "second-token-abcdef" not in second_profile_response.text
+    assert active_response.json()["settings"]["activeProfileId"] == "default"
+    assert delete_response.json()["settings"]["profiles"][0]["id"] == "default"
+    assert test_connection_response.status_code == 200
+    assert test_connection_response.json()["ok"] is False
+    assert test_connection_response.json()["responseKind"] == "empty"
+
+
+def test_local_app_imports_cc_switch_ai_settings(tmp_path: Path):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("uvicorn")
+    try:
+        from fastapi.testclient import TestClient
+    except (ImportError, RuntimeError) as exc:
+        pytest.skip(str(exc))
+
+    cc_switch = tmp_path / ".cc-switch"
+    cc_switch.mkdir()
+    settings_path = cc_switch / "settings.json"
+    db_path = cc_switch / "cc-switch.db"
+    provider_id = "provider-1"
+    settings_path.write_text(json.dumps({"currentProviderClaude": provider_id}), encoding="utf-8")
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("create table providers (id text, app_type text, name text, settings_config text)")
+        connection.execute("create table provider_endpoints (provider_id text, app_type text, url text)")
+        connection.execute(
+            "insert into providers values (?,?,?,?)",
+            (
+                provider_id,
+                "claude",
+                "DeepSeek",
+                json.dumps(
+                    {
+                        "env": {
+                            "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+                            "ANTHROPIC_AUTH_TOKEN": "secret-token-abcdef",
+                            "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
+                        }
+                    }
+                ),
+            ),
+        )
+        connection.execute(
+            "insert into provider_endpoints values (?,?,?)",
+            (provider_id, "claude", "https://api.deepseek.com/anthropic"),
+        )
+
+    app = create_app(LocalAppConfig(output_dir=str(tmp_path / "reports"), db_path=str(tmp_path / "eastmoney.db")))
+    client = TestClient(app)
+    response = client.post(
+        "/api/ai/import-cc-switch",
+        json={"settingsPath": str(settings_path), "dbPath": str(db_path)},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["settings"]["apiFormat"] == "anthropic"
+    assert payload["settings"]["baseUrl"] == "https://api.deepseek.com/anthropic"
+    assert payload["settings"]["model"] == "deepseek-v4-pro[1m]"
+    assert payload["settings"]["maskedToken"] == "sec...cdef"
+    assert "secret-token-abcdef" not in response.text
 
 
 def test_resolve_file_target_accepts_encoded_chinese_paths(tmp_path: Path):

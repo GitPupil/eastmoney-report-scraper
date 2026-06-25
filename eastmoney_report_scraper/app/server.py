@@ -208,6 +208,34 @@ def create_app(config: LocalAppConfig):
     def dashboard_data():
         return services.dashboard_data()
 
+    @app.get("/api/ai/settings")
+    def ai_settings():
+        return services.ai_settings()
+
+    @app.post("/api/ai/settings")
+    def update_ai_settings(payload: Dict[str, Any]):
+        return services.update_ai_settings(payload)
+
+    @app.post("/api/ai/profiles/active")
+    def set_active_ai_profile(payload: Dict[str, Any]):
+        return services.set_active_ai_profile(payload)
+
+    @app.post("/api/ai/profiles/delete")
+    def delete_ai_profile(payload: Dict[str, Any]):
+        return services.delete_ai_profile(payload)
+
+    @app.post("/api/ai/import-cc-switch")
+    def import_cc_switch_ai_settings(payload: Optional[Dict[str, Any]] = None):
+        return services.import_cc_switch_ai_settings(payload)
+
+    @app.post("/api/ai/test-connection")
+    def test_ai_connection(payload: Optional[Dict[str, Any]] = None):
+        return services.test_ai_connection(payload)
+
+    @app.post("/api/ai/analyze")
+    def ai_analyze(payload: Dict[str, Any]):
+        return services.ai_analyze(payload)
+
     @app.get("/api/runs")
     def runs(limit: int = 50):
         return services.runs(limit=limit)
