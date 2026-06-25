@@ -209,10 +209,34 @@
             <button class="secondary" id="aiSaveBtn">保存 AI 设置</button>
             <button class="secondary" id="aiClearTokenBtn">清除 Token</button>
             <button class="secondary" id="aiTestBtn">测试连接</button>
+            <button class="ghost" id="aiPreviewEvidenceBtn">预览 Evidence</button>
+            <button class="ghost" id="aiCopyBtn">复制结果</button>
+            <button class="ghost" id="aiHistoryRefreshBtn">刷新历史</button>
             <button id="aiAnalyzeBtn">生成 AI 分析</button>
           </div>
         </div>
         <div class="ai-evidence-note" id="aiEvidenceNote">会优先使用当前研究对象和全局筛选后的研报、热点、观点变化数据。</div>
+        <div class="ai-quality" id="aiQuality"></div>
+        <div class="ai-output-grid">
+          <section>
+            <div class="section-head compact">
+              <h2>结构化摘要</h2>
+              <a class="ai-export-link" id="aiExportLink" href="#" target="_blank" hidden>打开 Markdown</a>
+            </div>
+            <div id="aiStructured" class="ai-structured muted">生成分析后显示结构化结论。</div>
+          </section>
+          <section>
+            <h2>引用来源</h2>
+            <div id="aiCitations" class="ai-citations muted">生成分析后显示 R/H/O 引用源。</div>
+          </section>
+          <section>
+            <div class="section-head compact">
+              <h2>分析历史</h2>
+              <span class="muted" id="aiHistoryMeta">暂无历史</span>
+            </div>
+            <div id="aiHistory" class="ai-history muted">生成分析后自动保存到本地历史。</div>
+          </section>
+        </div>
         <pre class="ai-result" id="aiResult">配置 token 后，可对选中的公司、行业、热点或筛选结果生成解释。</pre>
       </article>
       <article class="panel wide" id="reportsPanel">

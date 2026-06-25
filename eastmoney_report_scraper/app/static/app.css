@@ -119,6 +119,23 @@ th { background: #eee8dc; color: #33404a; font-size: 12px; position: sticky; top
 textarea { min-height: 80px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); font: inherit; resize: vertical; }
 .ai-actions { display: flex; gap: 8px; align-items: end; justify-content: flex-end; flex-wrap: wrap; }
 .ai-evidence-note { margin-top: 12px; color: var(--muted); font-size: 12px; }
+.ai-quality { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.ai-quality.warn { color: #92400e; }
+.ai-quality.good { color: var(--teal); }
+.ai-output-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
+.ai-output-grid section { min-width: 0; padding-top: 10px; border-top: 1px solid var(--line); }
+.section-head.compact { margin-bottom: 8px; }
+.section-head.compact h2, .ai-output-grid h2 { margin: 0 0 8px; font-size: 14px; color: #33404a; }
+.ai-export-link { color: var(--blue); font-size: 12px; font-weight: 750; text-decoration: none; }
+.ai-structured, .ai-citations, .ai-history { max-height: 230px; overflow: auto; font-size: 13px; line-height: 1.55; }
+.ai-structured dl { margin: 0; display: grid; gap: 8px; }
+.ai-structured dt { color: var(--text); font-weight: 750; }
+.ai-structured dd { margin: 2px 0 0; color: #33404a; white-space: pre-wrap; }
+.ai-citation, .ai-history-item { padding: 7px 0; border-bottom: 1px solid #ebe6dc; }
+.ai-citation:last-child, .ai-history-item:last-child { border-bottom: 0; }
+.ai-citation .source, .ai-history-item .title { color: var(--text); font-weight: 750; }
+.ai-citation a, .ai-history-item a { color: var(--blue); text-decoration: none; font-weight: 700; }
+.ai-history-actions { display: flex; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
 .ai-result { margin: 10px 0 0; min-height: 180px; max-height: 420px; overflow: auto; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #16212b; color: #eef7ff; white-space: pre-wrap; line-height: 1.65; font-family: ui-monospace, SFMono-Regular, Consolas, "Microsoft YaHei", monospace; font-size: 13px; }
 .chart-grid { display: grid; grid-template-columns: repeat(2, minmax(300px, 1fr)); gap: 12px; margin-top: 0; }
 .chart-grid.secondary { grid-template-columns: repeat(2, minmax(300px, 1fr)); }
@@ -136,4 +153,4 @@ textarea { min-height: 80px; padding: 8px 10px; border: 1px solid var(--line); b
 .mini-table .table-wrap { max-height: 260px; }
 @media (max-width: 1100px) { .global-filters { grid-template-columns: repeat(3, minmax(120px, 1fr)); } }
 @media (max-width: 900px) { .panel { grid-column: span 12; } .form, .kpis, .radar-metrics { grid-template-columns: repeat(2, 1fr); } .global-filters { grid-template-columns: repeat(2, minmax(120px, 1fr)); } .radar-home, .radar-list { grid-template-columns: 1fr; } header, .radar-title-row, .workspace-title { align-items: flex-start; flex-direction: column; } }
-@media (max-width: 900px) { .section-head { flex-direction: column; } .report-tools, .analysis-tools { justify-content: flex-start; width: 100%; } .report-tools label, .analysis-tools label { flex: 1 1 160px; } .report-tools .search { flex-basis: 100%; } .analysis-kpis { grid-template-columns: repeat(2, 1fr); } .ai-grid { grid-template-columns: 1fr; } .ai-grid .ai-instruction, .ai-grid .ai-entity-picker, .ai-grid .ai-template-prompt { grid-column: span 1; } .ai-actions { justify-content: flex-start; } .chart-grid, .chart-grid.secondary { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .section-head { flex-direction: column; } .report-tools, .analysis-tools { justify-content: flex-start; width: 100%; } .report-tools label, .analysis-tools label { flex: 1 1 160px; } .report-tools .search { flex-basis: 100%; } .analysis-kpis { grid-template-columns: repeat(2, 1fr); } .ai-grid { grid-template-columns: 1fr; } .ai-grid .ai-instruction, .ai-grid .ai-entity-picker, .ai-grid .ai-template-prompt { grid-column: span 1; } .ai-actions { justify-content: flex-start; } .ai-output-grid { grid-template-columns: 1fr; } .chart-grid, .chart-grid.secondary { grid-template-columns: 1fr; } }

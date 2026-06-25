@@ -6,7 +6,11 @@ Keep this file focused on report evidence selection and research prompts.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
 from .ai_connector import (
@@ -43,6 +47,7 @@ from .ai_connector import (
     set_active_ai_profile,
     update_ai_config,
 )
+from .constants import DEFAULT_AI_ANALYSIS_DIR_NAME, DEFAULT_AI_HISTORY_NAME
 
 __all__ = [
     "AIConfig",
@@ -56,14 +61,22 @@ __all__ = [
     "ai_http_error_hint",
     "analyze_messages_with_ai",
     "analyze_with_ai",
+    "ai_history_path",
     "build_ai_evidence",
+    "build_ai_evidence_quality",
     "build_ai_messages",
     "build_ai_payload",
+    "build_ai_citations",
+    "build_ai_record",
     "default_cc_switch_paths",
     "delete_ai_profile",
     "detect_ai_response_kind",
+    "enrich_ai_result",
+    "export_ai_analysis_markdown",
     "extract_ai_message_content",
+    "history_record_markdown_path",
     "import_cc_switch_ai_config",
+    "list_ai_analysis_history",
     "list_ai_prompt_templates",
     "load_ai_config",
     "load_ai_profiles",
@@ -80,7 +93,9 @@ __all__ = [
     "resolve_ai_prompt_template",
     "save_ai_config",
     "save_ai_profiles",
+    "save_ai_analysis_record",
     "set_active_ai_profile",
+    "structure_ai_analysis",
     "update_ai_config",
 ]
 
@@ -119,6 +134,7 @@ AI_PROMPT_TEMPLATES: Dict[str, Dict[str, str]] = {
 COMMON_OUTPUT_REQUIREMENTS = (
     "输出必须包含以下小节：核心结论、支持证据、反向证据、观点变化、分歧、后续观察。"
     "每个判断都要引用 evidence 中的公司、行业、券商、日期、评分或 reason code。"
+    "引用具体证据时优先使用 sourceId，例如 [R1]、[H1]、[O1]。"
 )
 
 
@@ -147,7 +163,9 @@ def _first_present(row: Mapping[str, Any], names: Sequence[str]) -> Any:
 def _compact_report(row: Mapping[str, Any]) -> Dict[str, Any]:
     summary = str(row.get("summary") or row.get("title") or "")
     return {
+        "infoCode": row.get("infoCode", ""),
         "date": _first_present(row, ("date", "publishDate")),
+        "title": row.get("title", ""),
         "stockName": row.get("stockName", ""),
         "stockCode": row.get("stockCode", ""),
         "industryName": row.get("industryName", ""),
@@ -160,6 +178,8 @@ def _compact_report(row: Mapping[str, Any]) -> Dict[str, Any]:
         "themeTags": row.get("themeTags", []),
         "scoreReasons": row.get("scoreReasons", []),
         "summary": summary[:260],
+        "file": row.get("file", ""),
+        "fileHref": row.get("fileHref", ""),
     }
 
 
@@ -195,7 +215,13 @@ def _compact_opinion(row: Mapping[str, Any]) -> Dict[str, Any]:
         "targetDirection": row.get("targetDirection", ""),
         "epsDirection": row.get("epsDirection", ""),
         "scoreDirection": row.get("scoreDirection", ""),
+        "previousScore": row.get("previousScore", ""),
+        "latestScore": row.get("latestScore", ""),
     }
+
+
+def _with_source_id(row: Dict[str, Any], prefix: str, index: int) -> Dict[str, Any]:
+    return {"sourceId": f"{prefix}{index}", **row}
 
 
 def _matches_text(row: Mapping[str, Any], query: str) -> bool:
@@ -371,6 +397,9 @@ def build_ai_evidence(
         key=lambda row: (str(row.get("hotspotLevel") or ""), str(_first_present(row, ("latestPublishDate", "latestDate")))),
     )
     opinions = sorted(opinions, key=lambda row: str(row.get("latestDate") or ""), reverse=True)
+    compact_reports = [_with_source_id(_compact_report(row), "R", index) for index, row in enumerate(reports[:max_reports], start=1)]
+    compact_hotspots = [_with_source_id(_compact_hotspot(row), "H", index) for index, row in enumerate(hotspots[:10], start=1)]
+    compact_opinions = [_with_source_id(_compact_opinion(row), "O", index) for index, row in enumerate(opinions[:12], start=1)]
 
     return {
         "scope": scope_key,
@@ -413,11 +442,375 @@ def build_ai_evidence(
             "hotspots": len(hotspots),
             "opinionTrends": len(opinions),
         },
-        "reports": [_compact_report(row) for row in reports[:max_reports]],
-        "hotspots": [_compact_hotspot(row) for row in hotspots[:10]],
-        "opinionTrends": [_compact_opinion(row) for row in opinions[:12]],
+        "reports": compact_reports,
+        "hotspots": compact_hotspots,
+        "opinionTrends": compact_opinions,
         "aggregateHints": dashboard_data.get("aggregates", {}),
     }
+
+
+SECTION_KEYS = {
+    "coreConclusion": ("核心结论", "结论", "核心观点"),
+    "bullishEvidence": ("支持证据", "正向证据", "看多证据", "利好证据"),
+    "bearishEvidence": ("反向证据", "风险", "看空证据", "负面证据"),
+    "opinionChange": ("观点变化", "评级变化", "目标价", "eps", "signal score"),
+    "brokerConsensus": ("分歧", "券商共识", "机构共识", "一致预期"),
+    "nextWatch": ("后续观察", "后续跟踪", "跟踪项", "观察清单"),
+    "confidence": ("置信度", "信心", "可信度"),
+}
+
+
+def _section_key(line: str) -> str:
+    text = re.sub(r"^[#\s>*\-0-9.、一二三四五六七八九十]+", "", str(line or "").strip())
+    text = text.strip("：:[]【】 ")
+    lowered = text.lower()
+    for key, names in SECTION_KEYS.items():
+        if any(name.lower() in lowered for name in names):
+            return key
+    return ""
+
+
+def structure_ai_analysis(analysis_text: str, evidence: Mapping[str, Any]) -> Dict[str, Any]:
+    structured: Dict[str, Any] = {
+        "coreConclusion": "",
+        "bullishEvidence": "",
+        "bearishEvidence": "",
+        "opinionChange": "",
+        "brokerConsensus": "",
+        "nextWatch": "",
+        "confidence": "",
+        "sourceIds": sorted(set(re.findall(r"\b[HRO]\d+\b", analysis_text or ""))),
+        "sourceReportIds": sorted(set(re.findall(r"\bR\d+\b", analysis_text or ""))),
+    }
+    current_key = ""
+    buffers: Dict[str, list[str]] = {key: [] for key in structured if key not in {"sourceIds", "sourceReportIds"}}
+    for line in str(analysis_text or "").splitlines():
+        key = _section_key(line)
+        if key:
+            current_key = key
+            remainder = re.split(r"[:：]", line, maxsplit=1)
+            if len(remainder) == 2 and remainder[1].strip():
+                buffers[current_key].append(remainder[1].strip())
+            continue
+        if current_key and line.strip():
+            buffers[current_key].append(line.rstrip())
+    for key, lines in buffers.items():
+        structured[key] = "\n".join(lines).strip()
+    if not structured["coreConclusion"]:
+        compact = " ".join(str(analysis_text or "").split())
+        structured["coreConclusion"] = compact[:420]
+    if not structured["sourceIds"]:
+        structured["sourceIds"] = [citation["sourceId"] for citation in build_ai_citations(evidence)[:5]]
+        structured["sourceReportIds"] = [source_id for source_id in structured["sourceIds"] if source_id.startswith("R")]
+    return structured
+
+
+def _citation_label(parts: Sequence[Any]) -> str:
+    return " / ".join(str(part) for part in parts if part not in (None, ""))
+
+
+def build_ai_citations(evidence: Mapping[str, Any]) -> list[Dict[str, Any]]:
+    citations: list[Dict[str, Any]] = []
+    for row in evidence.get("reports") or []:
+        source_id = str(row.get("sourceId") or "")
+        if not source_id:
+            continue
+        citations.append(
+            {
+                "sourceId": source_id,
+                "sourceType": "report",
+                "label": _citation_label(
+                    [
+                        row.get("date"),
+                        row.get("stockName") or row.get("stockCode"),
+                        row.get("orgName"),
+                        row.get("title") or row.get("summary"),
+                    ]
+                ),
+                "date": row.get("date", ""),
+                "stockName": row.get("stockName", ""),
+                "stockCode": row.get("stockCode", ""),
+                "industryName": row.get("industryName", ""),
+                "orgName": row.get("orgName", ""),
+                "rating": row.get("rating", ""),
+                "targetPrice": row.get("targetPrice", ""),
+                "epsForecast": row.get("epsForecast", ""),
+                "signalScore": row.get("signalScore", ""),
+                "fileHref": row.get("fileHref", ""),
+            }
+        )
+    for row in evidence.get("hotspots") or []:
+        source_id = str(row.get("sourceId") or "")
+        if not source_id:
+            continue
+        citations.append(
+            {
+                "sourceId": source_id,
+                "sourceType": "hotspot",
+                "label": _citation_label(
+                    [
+                        row.get("entityName") or row.get("stockCode"),
+                        row.get("industryName"),
+                        row.get("hotspotLevel"),
+                        ", ".join(row.get("reasonCodes") or []),
+                    ]
+                ),
+                "entityName": row.get("entityName", ""),
+                "stockCode": row.get("stockCode", ""),
+                "industryName": row.get("industryName", ""),
+                "hotspotLevel": row.get("hotspotLevel", ""),
+                "reasonCodes": row.get("reasonCodes", []),
+            }
+        )
+    for row in evidence.get("opinionTrends") or []:
+        source_id = str(row.get("sourceId") or "")
+        if not source_id:
+            continue
+        citations.append(
+            {
+                "sourceId": source_id,
+                "sourceType": "opinion",
+                "label": _citation_label(
+                    [
+                        row.get("stockName") or row.get("stockCode"),
+                        row.get("orgName"),
+                        f"{row.get('previousDate', '')}->{row.get('latestDate', '')}",
+                        row.get("ratingChange") or row.get("scoreDirection"),
+                    ]
+                ),
+                "stockName": row.get("stockName", ""),
+                "stockCode": row.get("stockCode", ""),
+                "industryName": row.get("industryName", ""),
+                "orgName": row.get("orgName", ""),
+                "previousDate": row.get("previousDate", ""),
+                "latestDate": row.get("latestDate", ""),
+                "ratingChange": row.get("ratingChange", ""),
+                "targetDirection": row.get("targetDirection", ""),
+                "epsDirection": row.get("epsDirection", ""),
+                "scoreDirection": row.get("scoreDirection", ""),
+            }
+        )
+    return citations
+
+
+def build_ai_evidence_quality(evidence: Mapping[str, Any]) -> Dict[str, Any]:
+    counts = evidence.get("sampleCounts") or {}
+    summary = evidence.get("selectedScopeSummary") or {}
+    sampled_reports = len(evidence.get("reports") or [])
+    full_reports = int(counts.get("reports") or 0)
+    warnings: list[str] = []
+    if full_reports <= 0:
+        warnings.append("当前范围没有命中研报，AI 结论只能基于空样本。")
+    if full_reports > sampled_reports:
+        warnings.append(f"当前范围命中 {full_reports} 篇研报，本次只发送最近 {sampled_reports} 篇作为 evidence 样本。")
+    if full_reports > 0 and int(counts.get("opinionTrends") or 0) <= 0:
+        warnings.append("当前范围没有连续观点变化记录，评级/目标价/EPS 趋势判断会偏弱。")
+    if full_reports > 0 and int(counts.get("hotspots") or 0) <= 0:
+        warnings.append("当前范围没有热点信号记录，热点解释主要依赖研报明细。")
+    broker_count = int(summary.get("brokerCount") or 0)
+    if full_reports > 1 and broker_count <= 1:
+        warnings.append("当前范围券商覆盖较少，机构共识和分歧判断的可靠性有限。")
+    level = "empty" if full_reports <= 0 else "warn" if warnings else "good"
+    return {
+        "ok": full_reports > 0,
+        "level": level,
+        "warnings": warnings,
+        "checks": {
+            "reportCount": full_reports,
+            "sampledReportCount": sampled_reports,
+            "hotspotCount": int(counts.get("hotspots") or 0),
+            "opinionTrendCount": int(counts.get("opinionTrends") or 0),
+            "companyCount": int(summary.get("companyCount") or 0),
+            "industryCount": int(summary.get("industryCount") or 0),
+            "brokerCount": broker_count,
+        },
+    }
+
+
+def _stable_json(value: Mapping[str, Any]) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _hash_payload(value: Mapping[str, Any]) -> str:
+    return hashlib.sha256(_stable_json(value).encode("utf-8")).hexdigest()
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def ai_history_path(output_dir: Path, history_name: str = DEFAULT_AI_HISTORY_NAME) -> Path:
+    return Path(output_dir).expanduser() / history_name
+
+
+def _safe_slug(value: Any, fallback: str = "ai-analysis") -> str:
+    text = str(value or "").strip().lower()
+    text = re.sub(r"[^0-9a-zA-Z\u4e00-\u9fff_-]+", "-", text)
+    text = re.sub(r"-+", "-", text).strip("-")
+    return (text or fallback)[:48]
+
+
+def history_record_markdown_path(output_dir: Path, record: Mapping[str, Any]) -> Path:
+    relative = str(record.get("markdownFile") or "")
+    return Path(output_dir).expanduser() / relative
+
+
+def _public_request(payload: Mapping[str, Any]) -> Dict[str, Any]:
+    allowed = (
+        "scope",
+        "templateId",
+        "entityKey",
+        "entityKeys",
+        "startDate",
+        "endDate",
+        "query",
+        "filters",
+        "instruction",
+        "maxReports",
+    )
+    data = {key: payload.get(key) for key in allowed if key in payload}
+    data["hasCustomPrompt"] = bool(str(payload.get("templatePrompt") or "").strip())
+    if payload.get("templatePrompt"):
+        data["templatePromptHash"] = hashlib.sha256(str(payload.get("templatePrompt")).encode("utf-8")).hexdigest()
+    return data
+
+
+def enrich_ai_result(result: Mapping[str, Any]) -> Dict[str, Any]:
+    enriched = dict(result)
+    evidence = enriched.get("evidence") or {}
+    analysis = str(enriched.get("analysis") or "")
+    enriched["quality"] = build_ai_evidence_quality(evidence)
+    enriched["citations"] = build_ai_citations(evidence)
+    enriched["structured"] = structure_ai_analysis(analysis, evidence)
+    enriched["evidenceHash"] = _hash_payload({"evidence": evidence})
+    return enriched
+
+
+def build_ai_record(result: Mapping[str, Any], request_payload: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    enriched = enrich_ai_result(result)
+    request_data = _public_request(request_payload or {})
+    hash_input = {
+        "evidenceHash": enriched.get("evidenceHash"),
+        "template": enriched.get("template", {}),
+        "request": request_data,
+        "provider": enriched.get("provider", ""),
+        "model": enriched.get("model", ""),
+    }
+    record_hash = _hash_payload(hash_input)
+    created_at = _utc_now_iso()
+    summary = enriched.get("evidence", {}).get("selectedScopeSummary") or {}
+    slug_source = summary.get("query") or (summary.get("entities") or [{}])[0].get("label") or summary.get("scope")
+    record_id = f"{created_at.replace(':', '').replace('+', 'Z')}-{record_hash[:10]}"
+    markdown_file = f"{DEFAULT_AI_ANALYSIS_DIR_NAME}/{record_id}-{_safe_slug(slug_source)}.md"
+    return {
+        "id": record_id,
+        "createdAt": created_at,
+        "scope": summary.get("scope", ""),
+        "query": summary.get("query", ""),
+        "provider": enriched.get("provider", ""),
+        "model": enriched.get("model", ""),
+        "template": enriched.get("template", {}),
+        "request": request_data,
+        "usage": enriched.get("usage", {}),
+        "evidenceHash": enriched.get("evidenceHash", ""),
+        "recordHash": record_hash,
+        "sampleCounts": enriched.get("evidence", {}).get("sampleCounts", {}),
+        "selectedScopeSummary": summary,
+        "quality": enriched.get("quality", {}),
+        "citations": enriched.get("citations", []),
+        "structured": enriched.get("structured", {}),
+        "analysis": enriched.get("analysis", ""),
+        "markdownFile": markdown_file,
+        "markdownHref": markdown_file.replace("\\", "/"),
+    }
+
+
+def _markdown_escape(value: Any) -> str:
+    return str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def export_ai_analysis_markdown(output_dir: Path, record: Mapping[str, Any]) -> Path:
+    output_root = Path(output_dir).expanduser()
+    target = history_record_markdown_path(output_root, record)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    structured = record.get("structured") or {}
+    quality = record.get("quality") or {}
+    warnings = quality.get("warnings") or []
+    citations = record.get("citations") or []
+    summary = record.get("selectedScopeSummary") or {}
+    template = record.get("template") or {}
+    lines = [
+        f"# AI 分析 - {_markdown_escape(summary.get('query') or summary.get('scope') or record.get('id'))}",
+        "",
+        f"- 时间：{_markdown_escape(record.get('createdAt'))}",
+        f"- 模板：{_markdown_escape(template.get('name') or template.get('id'))}",
+        f"- 模型：{_markdown_escape(record.get('provider'))} / {_markdown_escape(record.get('model'))}",
+        f"- 范围：{_markdown_escape(summary.get('scope'))}",
+        (
+            f"- 样本：研报 {record.get('sampleCounts', {}).get('reports', 0)}，"
+            f"热点 {record.get('sampleCounts', {}).get('hotspots', 0)}，"
+            f"观点变化 {record.get('sampleCounts', {}).get('opinionTrends', 0)}"
+        ),
+        f"- Evidence Hash：`{_markdown_escape(record.get('evidenceHash'))}`",
+        "",
+    ]
+    if warnings:
+        lines.extend(["## Evidence 质量提示", "", *[f"- {warning}" for warning in warnings], ""])
+    section_titles = [
+        ("coreConclusion", "核心结论"),
+        ("bullishEvidence", "支持证据"),
+        ("bearishEvidence", "反向证据"),
+        ("opinionChange", "观点变化"),
+        ("brokerConsensus", "分歧"),
+        ("nextWatch", "后续观察"),
+        ("confidence", "置信度"),
+    ]
+    for key, title in section_titles:
+        value = _markdown_escape(structured.get(key))
+        if value:
+            lines.extend([f"## {title}", "", value, ""])
+    lines.extend(["## 原始输出", "", _markdown_escape(record.get("analysis")), ""])
+    if citations:
+        lines.extend(["## 引用来源", ""])
+        for citation in citations:
+            label = _markdown_escape(citation.get("label") or citation.get("sourceId"))
+            href = _markdown_escape(citation.get("fileHref"))
+            suffix = f" ([原文]({href}))" if href else ""
+            lines.append(f"- [{_markdown_escape(citation.get('sourceId'))}] {label}{suffix}")
+        lines.append("")
+    target.write_text("\n".join(lines), encoding="utf-8")
+    return target
+
+
+def save_ai_analysis_record(output_dir: Path, record: Mapping[str, Any]) -> Dict[str, Any]:
+    output_root = Path(output_dir).expanduser()
+    output_root.mkdir(parents=True, exist_ok=True)
+    exported = export_ai_analysis_markdown(output_root, record)
+    saved_record = dict(record)
+    saved_record["markdownFile"] = str(exported.relative_to(output_root)).replace("\\", "/")
+    saved_record["markdownHref"] = saved_record["markdownFile"]
+    path = ai_history_path(output_root)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(saved_record, ensure_ascii=False, separators=(",", ":")) + "\n")
+    return saved_record
+
+
+def list_ai_analysis_history(output_dir: Path, limit: int = 50) -> Dict[str, Any]:
+    path = ai_history_path(Path(output_dir).expanduser())
+    if not path.exists():
+        return {"items": [], "count": 0, "historyPath": str(path)}
+    rows: list[Dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, Mapping):
+            rows.append(dict(payload))
+    rows = rows[-max(1, int(limit or 50)) :][::-1]
+    return {"items": rows, "count": len(rows), "historyPath": str(path)}
 
 
 def build_ai_messages(
@@ -462,4 +855,4 @@ def analyze_with_ai(
     result["template"] = {**resolve_ai_prompt_template(template_id), "customPrompt": bool(template_prompt.strip())}
     result["evidence"] = evidence
     result.pop("response", None)
-    return result
+    return enrich_ai_result(result)

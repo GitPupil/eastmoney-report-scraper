@@ -10,11 +10,16 @@ from eastmoney_report_scraper.ai import (
     ai_http_error_hint,
     analyze_with_ai,
     build_ai_payload,
+    build_ai_citations,
     build_ai_evidence,
+    build_ai_evidence_quality,
     build_ai_messages,
+    build_ai_record,
     delete_ai_profile,
     detect_ai_response_kind,
+    export_ai_analysis_markdown,
     list_ai_prompt_templates,
+    list_ai_analysis_history,
     load_ai_config,
     load_ai_profiles,
     load_cc_switch_current_ai_config,
@@ -27,7 +32,9 @@ from eastmoney_report_scraper.ai import (
     public_ai_settings,
     redact_secrets,
     resolve_ai_prompt_template,
+    save_ai_analysis_record,
     set_active_ai_profile,
+    structure_ai_analysis,
     update_ai_config,
 )
 from eastmoney_report_scraper.ai_connector import AIConfig as StandaloneAIConfig
@@ -520,6 +527,94 @@ def test_build_ai_evidence_supports_multi_entities_date_range_and_scope_summary(
     assert [row["stockName"] for row in current_filters["reports"]] == ["乙公司", "甲公司"]
 
 
+def test_ai_p1_quality_citations_structure_history_and_markdown(tmp_path: Path):
+    evidence = {
+        "selectedScopeSummary": {
+            "scope": "company",
+            "query": "样本公司",
+            "reportCount": 2,
+            "companyCount": 1,
+            "industryCount": 1,
+            "brokerCount": 2,
+        },
+        "sampleCounts": {"reports": 2, "hotspots": 1, "opinionTrends": 1},
+        "reports": [
+            {
+                "sourceId": "R1",
+                "date": "2026-05-12",
+                "stockName": "样本公司",
+                "stockCode": "300001",
+                "industryName": "人工智能",
+                "orgName": "测试证券",
+                "rating": "买入",
+                "targetPrice": "30",
+                "epsForecast": "1.00",
+                "signalScore": "88",
+                "title": "样本公司深度",
+                "fileHref": "研报_2026-05-12/001.md",
+            }
+        ],
+        "hotspots": [
+            {
+                "sourceId": "H1",
+                "entityName": "样本公司",
+                "stockCode": "300001",
+                "industryName": "人工智能",
+                "hotspotLevel": "HOT",
+                "reasonCodes": ["MULTI_BROKER"],
+            }
+        ],
+        "opinionTrends": [
+            {
+                "sourceId": "O1",
+                "stockName": "样本公司",
+                "stockCode": "300001",
+                "orgName": "测试证券",
+                "previousDate": "2026-05-01",
+                "latestDate": "2026-05-12",
+                "scoreDirection": "up",
+            }
+        ],
+    }
+    analysis = (
+        "## 核心结论\n样本公司信号增强 [R1]。\n"
+        "## 支持证据\n多券商共振 [H1]。\n"
+        "## 观点变化\n评分上行 [O1]。\n"
+        "## 后续观察\n继续观察订单。"
+    )
+
+    structured = structure_ai_analysis(analysis, evidence)
+    citations = build_ai_citations(evidence)
+    quality = build_ai_evidence_quality(evidence)
+    record = build_ai_record(
+        {
+            "ok": True,
+            "provider": "openai-compatible",
+            "model": "mock-model",
+            "analysis": analysis,
+            "template": {"id": "company_deep_dive", "name": "单公司深挖"},
+            "usage": {"total_tokens": 12},
+            "evidence": evidence,
+        },
+        {"scope": "company", "query": "样本公司", "templateId": "company_deep_dive"},
+    )
+    saved = save_ai_analysis_record(tmp_path, record)
+    history = list_ai_analysis_history(tmp_path)
+    markdown_path = export_ai_analysis_markdown(tmp_path, saved)
+
+    assert structured["coreConclusion"] == "样本公司信号增强 [R1]。"
+    assert structured["sourceReportIds"] == ["R1"]
+    assert citations[0]["sourceId"] == "R1"
+    assert citations[0]["fileHref"] == "研报_2026-05-12/001.md"
+    assert quality["level"] == "warn"
+    assert "只发送最近 1 篇" in "；".join(quality["warnings"])
+    assert saved["markdownHref"].startswith("AI_ANALYSES/")
+    assert history["count"] == 1
+    assert history["items"][0]["analysis"] == analysis
+    assert markdown_path.exists()
+    assert "## 引用来源" in markdown_path.read_text(encoding="utf-8")
+
+
 def test_analyze_with_ai_uses_injected_http_post_without_network():
     config = AIConfig(api_token="secret-token-abcdef", model="mock-model")
     evidence = {"reports": [{"stockName": "样本公司"}]}
@@ -615,9 +710,13 @@ def test_local_app_ai_service_never_returns_raw_token(tmp_path: Path):
     saved = services.update_ai_settings({"apiToken": token, "model": "mock-model"})
     settings = services.ai_settings()
     result = services.ai_analyze({"scope": "global"})
+    history = services.ai_history()
 
     assert saved["ok"] is True
     assert result["ok"] is True
+    assert result["historyRecord"]["markdownHref"].startswith("AI_ANALYSES/")
+    assert (tmp_path / "reports" / result["historyRecord"]["markdownHref"]).exists()
+    assert history["count"] == 1
     payload = json.dumps({"saved": saved, "settings": settings, "result": result}, ensure_ascii=False)
     assert token not in payload
     assert settings["maskedToken"] == "sec...cdef"

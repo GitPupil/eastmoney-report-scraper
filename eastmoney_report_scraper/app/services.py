@@ -9,14 +9,18 @@ from typing import Any, Dict, Optional
 from ..ai import (
     AIHttpPost,
     analyze_with_ai,
+    build_ai_record,
     build_ai_evidence,
     delete_ai_profile,
+    enrich_ai_result,
     import_cc_switch_ai_config,
+    list_ai_analysis_history,
     list_ai_prompt_templates,
     load_ai_config,
     probe_ai_connection,
     public_ai_profile_settings,
     redact_secrets,
+    save_ai_analysis_record,
     set_active_ai_profile,
     update_ai_config,
 )
@@ -105,10 +109,8 @@ class LocalAppServices:
             config = load_ai_config(self.output_root)
         return probe_ai_connection(config)
 
-    def ai_analyze(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        self.ensure_ready()
-        config = load_ai_config(self.output_root)
-        evidence = build_ai_evidence(
+    def _build_ai_evidence_from_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return build_ai_evidence(
             self.dashboard_data(),
             scope=str(payload.get("scope") or "selected"),
             query=str(payload.get("query") or ""),
@@ -119,8 +121,25 @@ class LocalAppServices:
             filters=payload.get("filters") or {},
             max_reports=int(payload.get("maxReports") or 8),
         )
+
+    def ai_evidence(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        self.ensure_ready()
+        evidence = self._build_ai_evidence_from_payload(payload)
+        preview = enrich_ai_result({"analysis": "", "evidence": evidence})
+        return {
+            "ok": preview["quality"]["ok"],
+            "evidence": evidence,
+            "quality": preview["quality"],
+            "citations": preview["citations"],
+            "evidenceHash": preview["evidenceHash"],
+        }
+
+    def ai_analyze(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        self.ensure_ready()
+        config = load_ai_config(self.output_root)
+        evidence = self._build_ai_evidence_from_payload(payload)
         try:
-            return analyze_with_ai(
+            result = analyze_with_ai(
                 config,
                 evidence,
                 instruction=str(payload.get("instruction") or ""),
@@ -128,13 +147,22 @@ class LocalAppServices:
                 template_prompt=str(payload.get("templatePrompt") or ""),
                 http_post=self.ai_http_post,
             )
+            record = save_ai_analysis_record(self.output_root, build_ai_record(result, payload))
+            return {**result, "historyRecord": record}
         except Exception as exc:
+            preview = enrich_ai_result({"analysis": "", "evidence": evidence})
             return {
                 "ok": False,
                 "error": redact_secrets(str(exc), [config.api_token]),
                 "settings": self.ai_settings(),
                 "evidence": evidence,
+                "quality": preview["quality"],
+                "citations": preview["citations"],
             }
+
+    def ai_history(self, limit: int = 50) -> Dict[str, Any]:
+        self.ensure_ready()
+        return list_ai_analysis_history(self.output_root, limit=limit)
 
     def runs(self, limit: int = 50) -> Dict[str, Any]:
         self.ensure_ready()

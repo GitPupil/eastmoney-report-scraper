@@ -18,6 +18,8 @@ eastmoney_reports_check/
 *.db
 local_app_config.json
 local_ai_config.json
+AI_ANALYSIS_HISTORY.jsonl
+AI_ANALYSES/
 DASHBOARD.html
 run_manifest.jsonl
 report_index.csv

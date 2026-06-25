@@ -62,13 +62,14 @@
 - [x] Expand AI analysis scopes to all fetched data, one company, multiple companies, one industry, multiple industries, selected hotspots, and selected date ranges.
 - [x] Add prompt templates for company, industry, multi-industry, date-range, hotspot, and opinion-change explanations.
 - [x] Add a provider diagnostic / test connection button that probes endpoint, payload shape, auth, unsupported parameters, empty responses, and streaming/plain-text behavior.
+- [x] Add evidence preview and evidence quality checks before sending AI requests.
+- [x] Add structured AI output fields such as `coreConclusion`, `bullishEvidence`, `bearishEvidence`, `opinionChange`, `brokerConsensus`, `nextWatch`, `confidence`, and `sourceReportIds`.
+- [x] Add traceable citations from AI conclusions back to report IDs, brokers, dates, ratings, target prices, EPS fields, and hotspot reason codes.
+- [x] Add AI analysis history cache `AI_ANALYSIS_HISTORY.jsonl`, keyed by scope, evidence hash, prompt template, provider, and model.
+- [x] Export each successful AI analysis to `AI_ANALYSES/*.md` for local review or Obsidian.
 - [ ] Add CLI AI analysis command using the same evidence builder.
 - [ ] Add richer Local App actions to explain selected hotspot and date range presets when an AI token is configured.
 - [ ] Further formalize provider adapters beyond the current OpenAI Chat, OpenAI Responses, Text Completions, Anthropic-compatible, cc-switch, SSE/plain-text, and error-diagnostic tests.
-- [ ] Add evidence preview and evidence quality checks before sending AI requests.
-- [ ] Add structured AI output fields such as `coreConclusion`, `bullishEvidence`, `bearishEvidence`, `opinionChange`, `brokerConsensus`, `nextWatch`, `confidence`, and `sourceReportIds`.
-- [ ] Add traceable citations from AI conclusions back to report IDs, brokers, dates, ratings, target prices, EPS fields, and hotspot reason codes.
-- [ ] Add AI analysis history cache, likely `AI_ANALYSIS_HISTORY.jsonl`, keyed by scope, evidence hash, prompt template, provider, and model.
 - [ ] Add batch AI analysis jobs for daily A/B priority reports, HOT/STRONG hotspots, industry groups, and selected watchlists.
 - [ ] Add `AI_DAILY_BRIEF.md` generated from batch AI analysis.
 - [ ] Add multi-model comparison for the same evidence, including cheap-model screening and stronger-model deep dives.
@@ -77,7 +78,7 @@
 
 ### AI Analysis Priority Order
 - [x] P0: Prompt templates, richer analysis scopes, provider profiles, provider compatibility tests, and test connection diagnostics.
-- [ ] P1: Evidence preview, evidence quality checks, structured AI output, citations/source traceability, and AI analysis history cache.
+- [x] P1: Evidence preview, evidence quality checks, structured AI output, citations/source traceability, Markdown export, and AI analysis history cache.
 - [ ] P2: Batch AI analysis jobs, `AI_DAILY_BRIEF.md`, multi-model comparison, token/cost estimation, and rule-vs-AI consistency checks.
 
 ### Market Data & Alpha Feedback

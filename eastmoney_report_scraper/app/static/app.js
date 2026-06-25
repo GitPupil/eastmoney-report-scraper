@@ -10,6 +10,8 @@ let fetchTuningTouched = false;
 let analysisData = { reports: [], hotspots: [], entityDrilldowns: [], opinionTrends: [], meta: {} };
 let aiSettings = { hasToken: false, maskedToken: "", baseUrl: "", model: "", apiFormat: "auto", timeout: 60 };
 let aiTemplatePromptDirty = false;
+let latestAiResult = null;
+let latestAiHistory = { items: [] };
 let latestHealth = null;
 let latestRuns = { items: [] };
 let filtersInitialized = false;
@@ -967,16 +969,135 @@ function aiEvidenceSummary(evidence) {
   const label = entity.label || evidence.query || summary.scope || "当前筛选结果";
   return `${label}：研报 ${counts.reports || 0}，公司 ${summary.companyCount || 0}，行业 ${summary.industryCount || 0}，券商 ${summary.brokerCount || 0}，热点 ${counts.hotspots || 0}，观点变化 ${counts.opinionTrends || 0}`;
 }
-async function runAiAnalysis() {
+function renderAiQuality(quality) {
+  const safe = quality || {};
+  const warnings = safe.warnings || [];
+  const checks = safe.checks || {};
+  const level = safe.level || "";
+  $("aiQuality").className = `ai-quality ${level === "good" ? "good" : warnings.length ? "warn" : ""}`.trim();
+  if (!quality) {
+    $("aiQuality").textContent = "";
+    return;
+  }
+  const base = `Evidence：研报 ${checks.reportCount || 0} / 样本 ${checks.sampledReportCount || 0}，热点 ${checks.hotspotCount || 0}，观点变化 ${checks.opinionTrendCount || 0}`;
+  $("aiQuality").textContent = warnings.length ? `${base}。提示：${warnings.join("；")}` : `${base}。质量检查通过。`;
+}
+function renderAiStructured(structured) {
+  const fields = [
+    ["coreConclusion", "核心结论"],
+    ["bullishEvidence", "支持证据"],
+    ["bearishEvidence", "反向证据"],
+    ["opinionChange", "观点变化"],
+    ["brokerConsensus", "分歧"],
+    ["nextWatch", "后续观察"],
+    ["confidence", "置信度"],
+  ];
+  const rows = fields.filter(([key]) => structured && structured[key]).map(([key, label]) => (
+    `<dt>${esc(label)}</dt><dd>${esc(structured[key])}</dd>`
+  ));
+  $("aiStructured").className = rows.length ? "ai-structured" : "ai-structured muted";
+  $("aiStructured").innerHTML = rows.length ? `<dl>${rows.join("")}</dl>` : "暂无结构化摘要。";
+}
+function renderAiCitations(citations) {
+  const rows = (citations || []).slice(0, 18);
+  $("aiCitations").className = rows.length ? "ai-citations" : "ai-citations muted";
+  if (!rows.length) {
+    $("aiCitations").innerHTML = "暂无引用来源。";
+    return;
+  }
+  $("aiCitations").innerHTML = rows.map((item) => {
+    const href = item.fileHref ? `<a href="/preview/${esc(item.fileHref)}" target="_blank">原文</a>` : "";
+    return `<div class="ai-citation">
+      <div class="source">[${esc(item.sourceId)}] ${esc(item.sourceType || "")}</div>
+      <div>${esc(item.label || "-")}</div>
+      ${href}
+    </div>`;
+  }).join("");
+}
+function renderAiExportLink(record) {
+  const href = record && (record.markdownHref || record.markdownFile);
+  if (!href) {
+    $("aiExportLink").hidden = true;
+    $("aiExportLink").href = "#";
+    return;
+  }
+  $("aiExportLink").hidden = false;
+  $("aiExportLink").href = `/preview/${esc(href)}`;
+}
+function renderAiAnalysisResult(result) {
+  latestAiResult = result || null;
+  const safe = result || {};
+  $("aiResult").textContent = safe.analysis || "";
+  renderAiQuality(safe.quality);
+  renderAiStructured(safe.structured || {});
+  renderAiCitations(safe.citations || []);
+  renderAiExportLink(safe.historyRecord || {});
+}
+function bindAiHistoryActions() {
+  document.querySelectorAll("[data-ai-history-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const record = (latestAiHistory.items || []).find((item) => item.id === button.dataset.aiHistoryId);
+      if (!record) return;
+      latestAiResult = record;
+      $("aiResult").textContent = record.analysis || "";
+      $("aiEvidenceNote").textContent = `历史记录：${record.createdAt || ""} / ${record.scope || ""}`;
+      renderAiQuality(record.quality);
+      renderAiStructured(record.structured || {});
+      renderAiCitations(record.citations || []);
+      renderAiExportLink(record);
+    });
+  });
+}
+function renderAiHistory(history) {
+  latestAiHistory = history || { items: [] };
+  const items = latestAiHistory.items || [];
+  $("aiHistoryMeta").textContent = items.length ? `${items.length} 条` : "暂无历史";
+  $("aiHistory").className = items.length ? "ai-history" : "ai-history muted";
+  if (!items.length) {
+    $("aiHistory").innerHTML = "生成分析后自动保存到本地历史。";
+    return;
+  }
+  $("aiHistory").innerHTML = items.map((item) => {
+    const title = item.query || item.scope || item.id || "AI 分析";
+    const href = item.markdownHref || item.markdownFile || "";
+    return `<div class="ai-history-item">
+      <div class="title">${esc(title)}</div>
+      <div class="muted">${esc(item.createdAt || "")} · ${esc((item.template || {}).name || "")} · ${esc(item.model || "")}</div>
+      <div class="ai-history-actions">
+        <button type="button" class="link-button" data-ai-history-id="${esc(item.id)}">载入</button>
+        ${href ? `<a href="/preview/${esc(href)}" target="_blank">Markdown</a>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+  bindAiHistoryActions();
+}
+async function loadAiHistory(options = {}) {
+  try {
+    const history = await api("/api/ai/history");
+    renderAiHistory(history);
+  } catch (error) {
+    if (!options.silent) setStatus(`AI 历史读取失败：${error.message}`, "error");
+  }
+}
+async function copyAiAnalysis() {
+  const text = (latestAiResult && latestAiResult.analysis) || $("aiResult").textContent || "";
+  if (!text.trim()) {
+    setStatus("暂无可复制的 AI 分析结果", "error");
+    return;
+  }
+  if (!navigator.clipboard) {
+    setStatus("当前浏览器不支持直接复制，请手动选择结果文本。", "error");
+    return;
+  }
+  await navigator.clipboard.writeText(text);
+  setStatus("AI 分析结果已复制", "good");
+}
+function buildAiAnalysisPayload() {
   const entity = selectedAnalysisEntity();
   const scope = $("aiScope").value;
   const entityKeys = readAiEntityKeys();
   const query = $("aiQuery").value.trim() || (entity ? entity.label || entity.stockCode || "" : "");
-  if (scope === "selected" && !entity && !query) {
-    setStatus("请先选择研究对象，或把 AI 分析范围改为关键词/对象。", "error");
-    return;
-  }
-  const payload = {
+  return {
     scope,
     templateId: $("aiTemplate").value || "general_research",
     templatePrompt: aiTemplatePromptDirty ? $("aiTemplatePrompt").value.trim() : "",
@@ -989,6 +1110,47 @@ async function runAiAnalysis() {
     instruction: $("aiInstruction").value,
     maxReports: 8,
   };
+}
+function validateAiPayload(payload) {
+  if (payload.scope === "selected" && !payload.entityKey && !payload.query) {
+    setStatus("请先选择研究对象，或把 AI 分析范围改为关键词/对象。", "error");
+    return false;
+  }
+  return true;
+}
+async function previewAiEvidence() {
+  const payload = buildAiAnalysisPayload();
+  if (!validateAiPayload(payload)) return;
+  $("aiPreviewEvidenceBtn").disabled = true;
+  $("aiResult").textContent = "正在预览 evidence...";
+  try {
+    const result = await api("/api/ai/evidence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    $("aiEvidenceNote").textContent = aiEvidenceSummary(result.evidence || {});
+    renderAiQuality(result.quality);
+    renderAiStructured({});
+    renderAiCitations(result.citations || []);
+    renderAiExportLink({});
+    $("aiResult").textContent = JSON.stringify({
+      evidenceHash: result.evidenceHash,
+      selectedScopeSummary: (result.evidence || {}).selectedScopeSummary || {},
+      sampleCounts: (result.evidence || {}).sampleCounts || {},
+      quality: result.quality || {},
+    }, null, 2);
+    setStatus("Evidence 预览完成", result.ok ? "good" : "error");
+  } catch (error) {
+    $("aiResult").textContent = `Evidence 预览失败：${error.message}`;
+    setStatus(`Evidence 预览失败：${error.message}`, "error");
+  } finally {
+    $("aiPreviewEvidenceBtn").disabled = false;
+  }
+}
+async function runAiAnalysis() {
+  const payload = buildAiAnalysisPayload();
+  if (!validateAiPayload(payload)) return;
   $("aiAnalyzeBtn").disabled = true;
   $("aiResult").textContent = "AI 分析中...";
   $("aiEvidenceNote").textContent = "正在整理结构化 evidence...";
@@ -1001,10 +1163,15 @@ async function runAiAnalysis() {
     $("aiEvidenceNote").textContent = aiEvidenceSummary(result.evidence || {});
     if (!result.ok) {
       $("aiResult").textContent = `AI 分析失败：${result.error || "未知错误"}`;
+      renderAiQuality(result.quality);
+      renderAiStructured({});
+      renderAiCitations(result.citations || []);
+      renderAiExportLink({});
       setStatus("AI 分析失败", "error");
       return;
     }
-    $("aiResult").textContent = result.analysis || "";
+    renderAiAnalysisResult(result);
+    await loadAiHistory({ silent: true });
     setStatus("AI 分析完成", "good");
   } catch (error) {
     $("aiResult").textContent = `AI 分析失败：${error.message}`;
@@ -1100,6 +1267,9 @@ $("aiImportCcSwitchBtn").addEventListener("click", importCcSwitchSettings);
 $("aiSaveBtn").addEventListener("click", saveAiSettings);
 $("aiClearTokenBtn").addEventListener("click", clearAiToken);
 $("aiTestBtn").addEventListener("click", testAiConnection);
+$("aiPreviewEvidenceBtn").addEventListener("click", previewAiEvidence);
+$("aiCopyBtn").addEventListener("click", copyAiAnalysis);
+$("aiHistoryRefreshBtn").addEventListener("click", () => loadAiHistory());
 $("aiAnalyzeBtn").addEventListener("click", runAiAnalysis);
 filterIds.forEach((id) => $(id).addEventListener("input", () => { reportPage = 1; renderDashboardViews(); }));
 $("resetFiltersBtn").addEventListener("click", resetGlobalFilters);
@@ -1153,5 +1323,6 @@ if ($("qtype").value === "2") {
   $("jitter").value = "0.5";
 }
 loadAiSettings({ silent: true });
+loadAiHistory({ silent: true });
 safeRefresh({ silent: true });
 setInterval(() => safeRefresh({ silent: true }), 5000);

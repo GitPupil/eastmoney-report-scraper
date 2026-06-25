@@ -393,6 +393,8 @@ eastmoney_reports/
 | `eastmoney.db` | 本地 App SQLite 查询缓存 |
 | `local_app_config.json` | 本地 App 输出目录、端口和默认参数 |
 | `local_ai_config.json` | 本地 AI 接口地址、模型和 token，已被 Git 忽略 |
+| `AI_ANALYSIS_HISTORY.jsonl` | 本地 AI 分析历史，记录 scope、evidence hash、模板、模型和导出路径 |
+| `AI_ANALYSES/*.md` | 每次 AI 分析的 Markdown 导出，可放入 Obsidian |
 
 ## Local App Mode
 
@@ -428,7 +430,7 @@ Local App MVP 支持：
 - 从页面发起单日/区间抓取。
 - 配置可选 AI 分析接口，对全部数据、当前筛选、公司、行业、热点、日期区间或关键词生成解释。
 - 通过 `/api/health`、`/api/reports`、`/api/hotspots`、`/api/dashboard-data` 读取本地数据。
-- 通过 `/api/ai/settings`、`/api/ai/test-connection` 和 `/api/ai/analyze` 使用本地保存的 AI profile 做结构化证据分析。
+- 通过 `/api/ai/settings`、`/api/ai/test-connection`、`/api/ai/evidence`、`/api/ai/analyze` 和 `/api/ai/history` 使用本地保存的 AI profile 做结构化证据分析、预览和回看。
 - Windows 新电脑可双击 `start_local_app.bat` 一键安装依赖、导入已有输出、启动服务并打开浏览器。
 - macOS / Linux 可运行 `start_local_app.sh`，脚本会创建 `.venv`、安装依赖、导入已有输出、启动服务并打开浏览器。
 
@@ -441,10 +443,13 @@ AI 分析接口说明：
 - 可以保存多个 provider/token profile，并在页面上快速切换；页面和 API 只显示脱敏 token。
 - Token 输入框留空表示保留已保存 token；如果要删除当前 Profile 的 token，请点击“清除 Token”。
 - “测试连接”会返回 request URL、HTTP 状态、响应类型和建议修复，不会触发正式研报分析。
+- “预览 Evidence”只读取本地数据，不请求 AI；它会展示命中范围、质量提示、evidence hash 和 R/H/O 引用源。
 - 如果你已经用 `cc-switch` 配好了 Claude provider，可直接点击“从 cc-switch 导入”，系统会读取当前 Claude provider 的 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN` 和 `ANTHROPIC_MODEL`，并自动使用 `Anthropic Messages(cc-switch)` 格式。
 - 当前实现兼容 OpenAI-style Chat Completions 接口，例如 `/v1/chat/completions`；也可在“接口格式”中选择 `Anthropic Messages(cc-switch)`、`Text Completions(prompt)` 或 `Responses(input)`。
 - token 只保存在输出目录下的 `local_ai_config.json`，页面和 API 只显示脱敏状态。
 - AI 请求使用结构化 evidence：研报摘要、热点信号、观点变化、主题和评分原因，不会把本地整篇 Markdown 直接导出给模型。
+- AI 输出会被整理为结构化字段：核心结论、支持证据、反向证据、观点变化、分歧、后续观察、置信度，并提取 `[R1]` / `[H1]` / `[O1]` 这类来源引用。
+- 成功生成后会写入 `AI_ANALYSIS_HISTORY.jsonl`，并在 `AI_ANALYSES/` 下导出 Markdown；这些文件都是本地产物，已被 Git 忽略。
 - 通用 AI 接入层已单独放在 `eastmoney_report_scraper/ai_connector.py`，只依赖 Python 标准库；其他项目可以直接复用这个文件。研报项目自己的 evidence 构建和提示词保留在 `eastmoney_report_scraper/ai.py`。
 
 ## 未来集成计划
@@ -452,7 +457,7 @@ AI 分析接口说明：
 以下能力尚未作为当前版本功能发布，已进入 TODO / roadmap：
 
 - 实时数据接口 API：计划支持用户在本地 App 或 CLI 配置中提交行情/数据源 token，用于补充价格、指数、板块表现和研报信号后的市场反馈。token 只应保留在本地运行环境或被 Git 忽略的本地配置中，不写入日志、Markdown/CSV/JSONL/XLSX 输出、SQLite 数据行、Dashboard HTML 或异常信息。
-- AI 分析后续增强：当前已支持 Local App 里的模板、profile、连接诊断和多范围分析；下一步会补 evidence 预览、结构化输出、来源引用、历史缓存和 CLI 入口。
+- AI 分析后续增强：当前已支持 Local App 里的模板、profile、连接诊断、多范围分析、evidence 预览、结构化输出、来源引用和历史缓存；下一步会补批量 AI 分析、`AI_DAILY_BRIEF.md`、多模型对比、成本估算和 CLI 入口。
 
 ## CLI 参数
 

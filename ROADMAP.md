@@ -50,7 +50,7 @@
 
 AI priority sequence:
 - P0 usability: completed in the Local App with built-in prompt templates, richer scopes for all/company/industry/hotspot/date-range analysis, multiple provider profiles, provider compatibility tests, and a test-connection diagnostic.
-- P1 trust: evidence preview, evidence quality checks, structured AI output, source citations, and `AI_ANALYSIS_HISTORY.jsonl` caching.
+- P1 trust: completed in the Local App with evidence preview, evidence quality checks, structured AI output, source citations, `AI_ANALYSIS_HISTORY.jsonl` caching, and `AI_ANALYSES/*.md` exports.
 - P2 automation: batch AI analysis jobs, `AI_DAILY_BRIEF.md`, multi-model comparison, token/cost estimation, and rule-vs-AI consistency checks.
 
 ### 0.8.0: Market Data & Alpha Feedback

@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file.
 - Multiple local AI provider profiles with masked token handling, active-profile switching, and cc-switch import into profiles.
 - Local App AI scopes for all data, current filters, companies, industries, hotspots, date ranges, and keyword queries.
 - AI provider test-connection diagnostics covering request URL, response kind, HTTP status, and suggested fixes.
+- Local App AI evidence preview with quality warnings, evidence hash, and R/H/O source citations before provider calls.
+- Structured AI analysis post-processing for core conclusion, bullish/bearish evidence, opinion changes, divergence, next-watch items, confidence, and source IDs.
+- Local AI analysis history in `AI_ANALYSIS_HISTORY.jsonl` plus Markdown exports under `AI_ANALYSES/`.
 
 ### Changed
 - Local App background fetch tasks now call the shared `core` orchestration layer directly while the CLI remains an entrypoint wrapper.

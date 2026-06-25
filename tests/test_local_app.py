@@ -444,16 +444,30 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'id="aiDeleteProfileBtn"' in _INDEX_HTML
     assert 'id="aiClearTokenBtn"' in _INDEX_HTML
     assert 'id="aiTestBtn"' in _INDEX_HTML
+    assert 'id="aiPreviewEvidenceBtn"' in _INDEX_HTML
+    assert 'id="aiCopyBtn"' in _INDEX_HTML
+    assert 'id="aiHistoryRefreshBtn"' in _INDEX_HTML
     assert 'id="aiImportCcSwitchBtn"' in _INDEX_HTML
     assert 'id="aiModel"' in _INDEX_HTML
     assert 'id="aiToken"' in _INDEX_HTML
     assert 'id="aiAnalyzeBtn"' in _INDEX_HTML
     assert 'id="aiResult"' in _INDEX_HTML
+    assert 'id="aiQuality"' in _INDEX_HTML
+    assert 'id="aiStructured"' in _INDEX_HTML
+    assert 'id="aiCitations"' in _INDEX_HTML
+    assert 'id="aiHistory"' in _INDEX_HTML
+    assert 'id="aiExportLink"' in _INDEX_HTML
     assert "function loadAiSettings" in app_js
     assert "function runAiAnalysis" in app_js
     assert "function importCcSwitchSettings" in app_js
     assert "function testAiConnection" in app_js
     assert "function clearAiToken" in app_js
+    assert "function previewAiEvidence" in app_js
+    assert "function buildAiAnalysisPayload" in app_js
+    assert "function renderAiStructured" in app_js
+    assert "function renderAiCitations" in app_js
+    assert "function loadAiHistory" in app_js
+    assert "function copyAiAnalysis" in app_js
     assert "function populateAiEntityOptions" in app_js
     assert "function renderAiEntityCheckboxes" in app_js
     assert "function toggleAiPromptEditor" in app_js
@@ -462,6 +476,8 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'api("/api/ai/analyze"' in app_js
     assert 'api("/api/ai/import-cc-switch"' in app_js
     assert 'api("/api/ai/test-connection"' in app_js
+    assert 'api("/api/ai/evidence"' in app_js
+    assert 'api("/api/ai/history")' in app_js
     assert 'api("/api/ai/profiles/active"' in app_js
     assert 'api("/api/ai/profiles/delete"' in app_js
     assert 'apiFormat: $("aiApiFormat").value' in app_js
@@ -471,6 +487,9 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert "data-ai-entity-key" in app_js
     assert "document.addEventListener(\"click\", closeAiEntityMenu)" in app_js
     assert ".ai-result" in app_css
+    assert ".ai-output-grid" in app_css
+    assert ".ai-citation" in app_css
+    assert ".ai-history-item" in app_css
     assert ".multi-select-menu" in app_css
     assert ".multi-select-menu[hidden]" in app_css
     assert "position: absolute" in app_css
@@ -509,6 +528,8 @@ def test_local_app_serves_split_frontend_assets(tmp_path: Path):
     css_response = client.get("/static/app.css")
     js_response = client.get("/static/app.js")
     ai_settings_response = client.get("/api/ai/settings")
+    ai_history_response = client.get("/api/ai/history")
+    ai_evidence_response = client.post("/api/ai/evidence", json={"scope": "all"})
     saved_ai_response = client.post(
         "/api/ai/settings",
         json={"apiToken": "secret-token-abcdef", "model": "mock-model", "apiFormat": "completions"},
@@ -546,6 +567,11 @@ def test_local_app_serves_split_frontend_assets(tmp_path: Path):
     assert ai_settings_response.json()["activeProfileId"] == "default"
     assert ai_settings_response.json()["profiles"][0]["id"] == "default"
     assert any(template["id"] == "general_research" for template in ai_settings_response.json()["templates"])
+    assert ai_history_response.status_code == 200
+    assert ai_history_response.json()["items"] == []
+    assert ai_evidence_response.status_code == 200
+    assert "evidenceHash" in ai_evidence_response.json()
+    assert ai_evidence_response.json()["quality"]["level"] == "empty"
     assert saved_ai_response.status_code == 200
     assert "secret-token-abcdef" not in saved_ai_response.text
     assert saved_ai_response.json()["settings"]["maskedToken"] == "sec...cdef"

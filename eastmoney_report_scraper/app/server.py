@@ -232,9 +232,17 @@ def create_app(config: LocalAppConfig):
     def test_ai_connection(payload: Optional[Dict[str, Any]] = None):
         return services.test_ai_connection(payload)
 
+    @app.post("/api/ai/evidence")
+    def ai_evidence(payload: Dict[str, Any]):
+        return services.ai_evidence(payload)
+
     @app.post("/api/ai/analyze")
     def ai_analyze(payload: Dict[str, Any]):
         return services.ai_analyze(payload)
+
+    @app.get("/api/ai/history")
+    def ai_history(limit: int = 50):
+        return services.ai_history(limit=limit)
 
     @app.get("/api/runs")
     def runs(limit: int = 50):
