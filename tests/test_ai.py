@@ -15,8 +15,11 @@ from eastmoney_report_scraper.ai import (
     build_ai_evidence_quality,
     build_ai_messages,
     build_ai_record,
+    build_ai_batch_jobs,
+    build_rule_ai_consistency,
     delete_ai_profile,
     detect_ai_response_kind,
+    estimate_ai_request,
     export_ai_analysis_markdown,
     list_ai_prompt_templates,
     list_ai_analysis_history,
@@ -33,6 +36,8 @@ from eastmoney_report_scraper.ai import (
     redact_secrets,
     resolve_ai_prompt_template,
     save_ai_analysis_record,
+    run_ai_batch,
+    run_ai_comparison,
     set_active_ai_profile,
     structure_ai_analysis,
     update_ai_config,
@@ -613,6 +618,123 @@ def test_ai_p1_quality_citations_structure_history_and_markdown(tmp_path: Path):
     assert history["items"][0]["analysis"] == analysis
     assert markdown_path.exists()
     assert "## 引用来源" in markdown_path.read_text(encoding="utf-8")
+
+
+def test_ai_p2_estimate_batch_daily_brief_and_consistency(tmp_path: Path):
+    dashboard_data = {
+        "entityDrilldowns": [
+            {
+                "entityKey": "company:300001",
+                "entityType": "company",
+                "label": "样本公司",
+                "stockCode": "300001",
+                "industryName": "人工智能",
+                "reportCount": 2,
+                "brokerCount": 2,
+                "hotspotLevel": "HOT",
+            }
+        ],
+        "reports": [
+            {
+                "date": "2026-05-12",
+                "stockName": "样本公司",
+                "stockCode": "300001",
+                "industryName": "人工智能",
+                "orgName": "测试证券",
+                "rating": "买入",
+                "summary": "景气改善，订单增长。",
+                "signalScore": 86,
+            }
+        ],
+        "hotspots": [
+            {
+                "entityType": "company",
+                "entityName": "样本公司",
+                "stockCode": "300001",
+                "industryName": "人工智能",
+                "hotspotLevel": "HOT",
+                "coverage30d": 2,
+                "reasonCodes": ["MULTI_BROKER"],
+            }
+        ],
+        "opinionTrends": [
+            {
+                "stockName": "样本公司",
+                "stockCode": "300001",
+                "industryName": "人工智能",
+                "orgName": "测试证券",
+                "latestDate": "2026-05-12",
+                "scoreDirection": "up",
+            }
+        ],
+    }
+    jobs = build_ai_batch_jobs(dashboard_data, batch_type="hotspots", limit=1)
+    evidence = build_ai_evidence(dashboard_data, scope="all")
+    estimate = estimate_ai_request(evidence, input_price_per_1k=0.001, output_price_per_1k=0.002)
+
+    def fake_post(_received_config, _messages):
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": "## 核心结论\n样本公司景气改善 [R1]。\n## 支持证据\n多券商共振 [H1]。\n## 后续观察\n继续跟踪订单。"
+                    }
+                }
+            ],
+            "usage": {"total_tokens": 24},
+        }
+
+    batch = run_ai_batch(
+        AIConfig(api_token="secret-token-abcdef", model="mock-model"),
+        dashboard_data,
+        tmp_path,
+        batch_type="hotspots",
+        limit=1,
+        http_post=fake_post,
+    )
+    record = batch["items"][0]["record"]
+    consistency = build_rule_ai_consistency(record)
+
+    assert jobs[0]["payload"]["templateId"] == "hotspot_radar"
+    assert estimate["estimatedInputTokens"] > 0
+    assert estimate["estimatedCost"] is not None
+    assert batch["okCount"] == 1
+    assert batch["dailyBriefHref"] == "AI_DAILY_BRIEF.md"
+    assert (tmp_path / "AI_DAILY_BRIEF.md").exists()
+    assert record["estimate"]["estimatedTotalTokens"] > 0
+    assert record["consistency"]["level"] == "ok"
+    assert consistency["level"] == "ok"
+
+
+def test_ai_p2_profile_comparison_saves_each_result(tmp_path: Path):
+    evidence = {
+        "selectedScopeSummary": {"scope": "all", "reportCount": 1, "brokerCount": 1},
+        "sampleCounts": {"reports": 1, "hotspots": 0, "opinionTrends": 0},
+        "reports": [{"sourceId": "R1", "stockName": "样本公司", "summary": "订单增长"}],
+        "hotspots": [],
+        "opinionTrends": [],
+    }
+
+    def fake_post(received_config, _messages):
+        return {"choices": [{"message": {"content": f"## 核心结论\n{received_config.model} 完成 [R1]。"}}]}
+
+    comparison = run_ai_comparison(
+        [
+            ("cheap", AIConfig(api_token="secret-token-abcdef", model="cheap-model")),
+            ("strong", AIConfig(api_token="secret-token-abcdef", model="strong-model")),
+        ],
+        evidence,
+        tmp_path,
+        template_id="general_research",
+        http_post=fake_post,
+    )
+    history = list_ai_analysis_history(tmp_path)
+
+    assert comparison["ok"] is True
+    assert len(comparison["items"]) == 2
+    assert {item["profileId"] for item in comparison["items"]} == {"cheap", "strong"}
+    assert history["count"] == 2
+    assert all(item["record"]["comparisonId"] == comparison["comparisonId"] for item in comparison["items"])
 
 
 def test_analyze_with_ai_uses_injected_http_post_without_network():

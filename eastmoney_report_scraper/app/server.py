@@ -240,6 +240,14 @@ def create_app(config: LocalAppConfig):
     def ai_analyze(payload: Dict[str, Any]):
         return services.ai_analyze(payload)
 
+    @app.post("/api/ai/batch")
+    def ai_batch(payload: Dict[str, Any]):
+        return services.ai_batch(payload)
+
+    @app.post("/api/ai/compare")
+    def ai_compare(payload: Dict[str, Any]):
+        return services.ai_compare(payload)
+
     @app.get("/api/ai/history")
     def ai_history(limit: int = 50):
         return services.ai_history(limit=limit)

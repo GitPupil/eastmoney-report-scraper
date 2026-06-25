@@ -19,6 +19,8 @@ eastmoney_reports_check/
 local_app_config.json
 local_ai_config.json
 AI_ANALYSIS_HISTORY.jsonl
+AI_BATCH_HISTORY.jsonl
+AI_DAILY_BRIEF.md
 AI_ANALYSES/
 DASHBOARD.html
 run_manifest.jsonl

@@ -31,6 +31,7 @@ from .ai_connector import (
     extract_ai_message_content,
     import_cc_switch_ai_config,
     load_ai_config,
+    load_ai_config_for_profile,
     load_ai_profiles,
     load_cc_switch_current_ai_config,
     mask_token,
@@ -47,7 +48,12 @@ from .ai_connector import (
     set_active_ai_profile,
     update_ai_config,
 )
-from .constants import DEFAULT_AI_ANALYSIS_DIR_NAME, DEFAULT_AI_HISTORY_NAME
+from .constants import (
+    DEFAULT_AI_ANALYSIS_DIR_NAME,
+    DEFAULT_AI_BATCH_HISTORY_NAME,
+    DEFAULT_AI_DAILY_BRIEF_NAME,
+    DEFAULT_AI_HISTORY_NAME,
+)
 
 __all__ = [
     "AIConfig",
@@ -76,6 +82,14 @@ __all__ = [
     "extract_ai_message_content",
     "history_record_markdown_path",
     "import_cc_switch_ai_config",
+    "build_ai_batch_jobs",
+    "build_ai_daily_brief",
+    "build_rule_ai_consistency",
+    "estimate_ai_request",
+    "load_ai_config_for_profile",
+    "run_ai_batch",
+    "run_ai_comparison",
+    "save_ai_batch_record",
     "list_ai_analysis_history",
     "list_ai_prompt_templates",
     "load_ai_config",
@@ -811,6 +825,317 @@ def list_ai_analysis_history(output_dir: Path, limit: int = 50) -> Dict[str, Any
             rows.append(dict(payload))
     rows = rows[-max(1, int(limit or 50)) :][::-1]
     return {"items": rows, "count": len(rows), "historyPath": str(path)}
+
+
+def estimate_ai_request(
+    evidence: Mapping[str, Any],
+    instruction: str = "",
+    template_id: str = "general_research",
+    template_prompt: str = "",
+    *,
+    expected_output_tokens: int = 1200,
+    input_price_per_1k: float = 0.0,
+    output_price_per_1k: float = 0.0,
+) -> Dict[str, Any]:
+    messages = build_ai_messages(
+        evidence,
+        instruction=instruction,
+        template_id=template_id,
+        template_prompt=template_prompt,
+    )
+    text = "\n".join(message.get("content", "") for message in messages)
+    # A simple local estimate: Chinese-heavy prompts are usually denser than
+    # English tokenization, so char/2 is a conservative rough number.
+    input_tokens = max(1, int(len(text) / 2))
+    output_tokens = max(1, int(expected_output_tokens or 1200))
+    total_tokens = input_tokens + output_tokens
+    estimated_cost = None
+    if input_price_per_1k or output_price_per_1k:
+        estimated_cost = round((input_tokens / 1000) * input_price_per_1k + (output_tokens / 1000) * output_price_per_1k, 6)
+    return {
+        "inputChars": len(text),
+        "estimatedInputTokens": input_tokens,
+        "estimatedOutputTokens": output_tokens,
+        "estimatedTotalTokens": total_tokens,
+        "inputPricePer1k": input_price_per_1k,
+        "outputPricePer1k": output_price_per_1k,
+        "estimatedCost": estimated_cost,
+        "currency": "USD" if estimated_cost is not None else "",
+        "note": "Token count is a local rough estimate; cost is only calculated when per-1k token prices are supplied.",
+    }
+
+
+def _entity_key_for_hotspot(dashboard_data: Mapping[str, Any], hotspot: Mapping[str, Any]) -> str:
+    entities = dashboard_data.get("entityDrilldowns") or []
+    for entity in entities:
+        if hotspot.get("entityType") == "company" and entity.get("entityType") == "company":
+            if (hotspot.get("stockCode") and hotspot.get("stockCode") == entity.get("stockCode")) or (
+                hotspot.get("entityName") and hotspot.get("entityName") == entity.get("label")
+            ):
+                return str(entity.get("entityKey") or "")
+        if entity.get("entityType") == "industry" and (
+            hotspot.get("entityName") == entity.get("label") or hotspot.get("industryName") == entity.get("label")
+        ):
+            return str(entity.get("entityKey") or "")
+    return ""
+
+
+def _entity_rank(entity: Mapping[str, Any]) -> tuple[int, int, int]:
+    level_rank = {"STRONG": 4, "HOT": 3, "WATCH": 2}
+    return (
+        level_rank.get(str(entity.get("hotspotLevel") or "").upper(), 0),
+        int(entity.get("brokerCount") or entity.get("brokerCount30d") or 0),
+        int(entity.get("reportCount") or entity.get("coverage30d") or 0),
+    )
+
+
+def build_ai_batch_jobs(
+    dashboard_data: Mapping[str, Any],
+    *,
+    batch_type: str = "daily_overview",
+    limit: int = 5,
+    filters: Optional[Mapping[str, Any]] = None,
+) -> list[Dict[str, Any]]:
+    batch_type = str(batch_type or "daily_overview").strip()
+    limit = max(1, min(int(limit or 5), 10))
+    filters = dict(filters or {})
+    jobs: list[Dict[str, Any]] = []
+    if batch_type == "daily_overview":
+        return [
+            {
+                "jobId": "daily-overview",
+                "name": "日度总览",
+                "payload": {"scope": "current_filters", "filters": filters, "templateId": "daily_overview", "maxReports": 12},
+            }
+        ]
+    if batch_type == "hotspots":
+        hotspots = sorted(
+            dashboard_data.get("hotspots") or [],
+            key=lambda row: (
+                {"STRONG": 0, "HOT": 1, "WATCH": 2}.get(str(row.get("hotspotLevel") or "").upper(), 9),
+                -int(float(row.get("coverage30d") or row.get("brokerCount30d") or 0)),
+            ),
+        )
+        for index, hotspot in enumerate(hotspots[:limit], start=1):
+            entity_key = _entity_key_for_hotspot(dashboard_data, hotspot)
+            name = str(hotspot.get("entityName") or hotspot.get("stockCode") or hotspot.get("industryName") or f"热点 {index}")
+            jobs.append(
+                {
+                    "jobId": f"hotspot-{index}",
+                    "name": f"热点：{name}",
+                    "payload": {
+                        "scope": "hotspot",
+                        "entityKey": entity_key,
+                        "query": name,
+                        "filters": filters,
+                        "templateId": "hotspot_radar",
+                        "maxReports": 8,
+                    },
+                }
+            )
+        return jobs
+    entity_type = "industry" if batch_type == "industries" else "company"
+    template_id = "industry_trend" if entity_type == "industry" else "company_deep_dive"
+    scope = "industry" if entity_type == "industry" else "company"
+    entities = [
+        entity
+        for entity in (dashboard_data.get("entityDrilldowns") or [])
+        if entity.get("entityType") == entity_type and entity.get("entityKey")
+    ]
+    for index, entity in enumerate(sorted(entities, key=_entity_rank, reverse=True)[:limit], start=1):
+        label = str(entity.get("label") or entity.get("stockCode") or f"{entity_type}-{index}")
+        jobs.append(
+            {
+                "jobId": f"{entity_type}-{index}",
+                "name": f"{'行业' if entity_type == 'industry' else '公司'}：{label}",
+                "payload": {
+                    "scope": scope,
+                    "entityKey": entity.get("entityKey", ""),
+                    "query": label,
+                    "filters": filters,
+                    "templateId": template_id,
+                    "maxReports": 8,
+                },
+            }
+        )
+    return jobs
+
+
+def build_rule_ai_consistency(record: Mapping[str, Any]) -> Dict[str, Any]:
+    structured = record.get("structured") or {}
+    evidence = {
+        "sampleCounts": record.get("sampleCounts") or {},
+        "selectedScopeSummary": record.get("selectedScopeSummary") or {},
+    }
+    text = " ".join(str(structured.get(key) or "") for key in ("coreConclusion", "bullishEvidence", "bearishEvidence", "opinionChange"))
+    text_lower = text.lower()
+    source_ids = set(structured.get("sourceIds") or [])
+    citation_ids = {citation.get("sourceId") for citation in record.get("citations") or []}
+    checks: list[Dict[str, Any]] = []
+    if source_ids and not source_ids.issubset(citation_ids):
+        checks.append({"level": "warn", "code": "UNKNOWN_SOURCE_ID", "message": "AI 输出引用了 evidence 中不存在的 sourceId。"})
+    bearish_words = ("风险", "下调", "转弱", "承压", "下降", "不及预期", "bearish")
+    bullish_words = ("上调", "增强", "改善", "共振", "景气", "买入", "bullish")
+    sample_counts = evidence.get("sampleCounts") or {}
+    if int(sample_counts.get("hotspots") or 0) > 0 and any(word in text_lower for word in bearish_words):
+        checks.append({"level": "warn", "code": "HOTSPOT_WITH_BEARISH_TONE", "message": "规则层有热点信号，但 AI 文本出现偏弱或风险表述，建议人工复核。"})
+    if int(sample_counts.get("opinionTrends") or 0) <= 0 and any(word in text_lower for word in ("连续", "持续", "上修", "下修")):
+        checks.append({"level": "warn", "code": "TREND_WITHOUT_HISTORY", "message": "缺少连续观点记录，但 AI 使用了趋势性表述。"})
+    if int(sample_counts.get("reports") or 0) > 0 and not any(word in text_lower for word in bullish_words + bearish_words):
+        checks.append({"level": "info", "code": "LOW_DIRECTIONALITY", "message": "AI 文本方向性较弱，可结合 deterministic signalScore 再判断。"})
+    return {
+        "level": "warn" if any(check["level"] == "warn" for check in checks) else "ok",
+        "checks": checks,
+    }
+
+
+def ai_batch_history_path(output_dir: Path, history_name: str = DEFAULT_AI_BATCH_HISTORY_NAME) -> Path:
+    return Path(output_dir).expanduser() / history_name
+
+
+def save_ai_batch_record(output_dir: Path, batch_record: Mapping[str, Any]) -> Dict[str, Any]:
+    output_root = Path(output_dir).expanduser()
+    output_root.mkdir(parents=True, exist_ok=True)
+    path = ai_batch_history_path(output_root)
+    saved = dict(batch_record)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(saved, ensure_ascii=False, separators=(",", ":")) + "\n")
+    return saved
+
+
+def build_ai_daily_brief(output_dir: Path, batch_record: Mapping[str, Any], brief_name: str = DEFAULT_AI_DAILY_BRIEF_NAME) -> Path:
+    output_root = Path(output_dir).expanduser()
+    target = output_root / brief_name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# AI Daily Brief",
+        "",
+        f"- Batch ID: `{batch_record.get('id', '')}`",
+        f"- Created At: {batch_record.get('createdAt', '')}",
+        f"- Batch Type: {batch_record.get('batchType', '')}",
+        f"- Jobs: {batch_record.get('okCount', 0)} ok / {batch_record.get('errorCount', 0)} error",
+        "",
+    ]
+    for item in batch_record.get("items") or []:
+        record = item.get("record") or {}
+        if item.get("ok") and record:
+            structured = record.get("structured") or {}
+            href = record.get("markdownHref") or record.get("markdownFile") or ""
+            title = item.get("name") or record.get("query") or record.get("scope") or item.get("jobId")
+            lines.extend(
+                [
+                    f"## {title}",
+                    "",
+                    structured.get("coreConclusion") or record.get("analysis", "")[:300],
+                    "",
+                    f"- Evidence: `{record.get('evidenceHash', '')}`",
+                    f"- Markdown: [{href}]({href})" if href else "- Markdown: -",
+                    "",
+                ]
+            )
+        else:
+            lines.extend([f"## {item.get('name') or item.get('jobId')}", "", f"- Error: {item.get('error', '')}", ""])
+    target.write_text("\n".join(lines), encoding="utf-8")
+    return target
+
+
+def run_ai_batch(
+    config: AIConfig,
+    dashboard_data: Mapping[str, Any],
+    output_dir: Path,
+    *,
+    batch_type: str = "daily_overview",
+    limit: int = 5,
+    filters: Optional[Mapping[str, Any]] = None,
+    instruction: str = "",
+    http_post: Optional[AIHttpPost] = None,
+    write_daily_brief: bool = True,
+    input_price_per_1k: float = 0.0,
+    output_price_per_1k: float = 0.0,
+) -> Dict[str, Any]:
+    jobs = build_ai_batch_jobs(dashboard_data, batch_type=batch_type, limit=limit, filters=filters)
+    batch_id = f"{_utc_now_iso().replace(':', '').replace('+', 'Z')}-{_hash_payload({'jobs': jobs})[:10]}"
+    items: list[Dict[str, Any]] = []
+    for job in jobs:
+        payload = {**job.get("payload", {}), "instruction": instruction}
+        evidence = build_ai_evidence(
+            dashboard_data,
+            scope=str(payload.get("scope") or "selected"),
+            query=str(payload.get("query") or ""),
+            entity_key=str(payload.get("entityKey") or ""),
+            entity_keys=payload.get("entityKeys") or [],
+            filters=payload.get("filters") or {},
+            max_reports=int(payload.get("maxReports") or 8),
+        )
+        estimate = estimate_ai_request(
+            evidence,
+            instruction=instruction,
+            template_id=str(payload.get("templateId") or "general_research"),
+            input_price_per_1k=input_price_per_1k,
+            output_price_per_1k=output_price_per_1k,
+        )
+        try:
+            result = analyze_with_ai(
+                config,
+                evidence,
+                instruction=instruction,
+                template_id=str(payload.get("templateId") or "general_research"),
+                http_post=http_post,
+            )
+            record = build_ai_record(result, payload)
+            record["estimate"] = estimate
+            record["consistency"] = build_rule_ai_consistency(record)
+            saved = save_ai_analysis_record(output_dir, record)
+            items.append({"ok": True, "jobId": job.get("jobId"), "name": job.get("name"), "record": saved})
+        except Exception as exc:
+            items.append({"ok": False, "jobId": job.get("jobId"), "name": job.get("name"), "error": redact_secrets(str(exc), [config.api_token]), "estimate": estimate})
+    batch_record = {
+        "id": batch_id,
+        "createdAt": _utc_now_iso(),
+        "batchType": batch_type,
+        "jobCount": len(jobs),
+        "okCount": sum(1 for item in items if item.get("ok")),
+        "errorCount": sum(1 for item in items if not item.get("ok")),
+        "items": items,
+    }
+    if write_daily_brief:
+        brief_path = build_ai_daily_brief(output_dir, batch_record)
+        batch_record["dailyBriefFile"] = str(brief_path.relative_to(Path(output_dir).expanduser())).replace("\\", "/")
+        batch_record["dailyBriefHref"] = batch_record["dailyBriefFile"]
+    return save_ai_batch_record(output_dir, batch_record)
+
+
+def run_ai_comparison(
+    configs: Sequence[tuple[str, AIConfig]],
+    evidence: Mapping[str, Any],
+    output_dir: Path,
+    *,
+    request_payload: Optional[Mapping[str, Any]] = None,
+    instruction: str = "",
+    template_id: str = "general_research",
+    http_post: Optional[AIHttpPost] = None,
+) -> Dict[str, Any]:
+    comparison_id = f"{_utc_now_iso().replace(':', '').replace('+', 'Z')}-{_hash_payload({'evidence': evidence, 'template': template_id})[:10]}"
+    items: list[Dict[str, Any]] = []
+    for profile_id, config in configs:
+        estimate = estimate_ai_request(evidence, instruction=instruction, template_id=template_id)
+        try:
+            result = analyze_with_ai(config, evidence, instruction=instruction, template_id=template_id, http_post=http_post)
+            record = build_ai_record(result, request_payload or {"scope": evidence.get("scope"), "templateId": template_id})
+            record["comparisonId"] = comparison_id
+            record["profileId"] = profile_id
+            record["estimate"] = estimate
+            record["consistency"] = build_rule_ai_consistency(record)
+            saved = save_ai_analysis_record(output_dir, record)
+            items.append({"ok": True, "profileId": profile_id, "record": saved})
+        except Exception as exc:
+            items.append({"ok": False, "profileId": profile_id, "error": redact_secrets(str(exc), [config.api_token]), "estimate": estimate})
+    return {
+        "ok": any(item.get("ok") for item in items),
+        "comparisonId": comparison_id,
+        "items": items,
+        "evidenceHash": _hash_payload({"evidence": evidence}),
+    }
 
 
 def build_ai_messages(

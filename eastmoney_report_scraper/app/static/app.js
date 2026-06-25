@@ -1109,6 +1109,8 @@ function buildAiAnalysisPayload() {
     filters: readFilters(),
     instruction: $("aiInstruction").value,
     maxReports: 8,
+    inputPricePer1k: Number($("aiInputPrice").value || 0),
+    outputPricePer1k: Number($("aiOutputPrice").value || 0),
   };
 }
 function validateAiPayload(payload) {
@@ -1139,6 +1141,7 @@ async function previewAiEvidence() {
       selectedScopeSummary: (result.evidence || {}).selectedScopeSummary || {},
       sampleCounts: (result.evidence || {}).sampleCounts || {},
       quality: result.quality || {},
+      estimate: result.estimate || {},
     }, null, 2);
     setStatus("Evidence 预览完成", result.ok ? "good" : "error");
   } catch (error) {
@@ -1178,6 +1181,69 @@ async function runAiAnalysis() {
     setStatus(`AI 分析失败：${error.message}`, "error");
   } finally {
     $("aiAnalyzeBtn").disabled = false;
+  }
+}
+async function runAiBatch() {
+  const payload = {
+    batchType: $("aiBatchType").value || "daily_overview",
+    limit: Number($("aiBatchLimit").value || 5),
+    filters: readFilters(),
+    instruction: $("aiInstruction").value,
+    writeDailyBrief: true,
+    inputPricePer1k: Number($("aiInputPrice").value || 0),
+    outputPricePer1k: Number($("aiOutputPrice").value || 0),
+  };
+  $("aiBatchBtn").disabled = true;
+  $("aiResult").textContent = "AI 批量分析中...";
+  try {
+    const result = await api("/api/ai/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    $("aiResult").textContent = JSON.stringify(result, null, 2);
+    $("aiEvidenceNote").textContent = `批量完成：${result.okCount || 0} 成功，${result.errorCount || 0} 失败`;
+    renderAiQuality(null);
+    renderAiStructured({});
+    renderAiCitations([]);
+    renderAiExportLink({ markdownHref: result.dailyBriefHref || result.dailyBriefFile || "" });
+    await loadAiHistory({ silent: true });
+    setStatus("AI 批量分析完成", result.errorCount ? "error" : "good");
+  } catch (error) {
+    $("aiResult").textContent = `AI 批量分析失败：${error.message}`;
+    setStatus(`AI 批量分析失败：${error.message}`, "error");
+  } finally {
+    $("aiBatchBtn").disabled = false;
+  }
+}
+async function compareAiProfiles() {
+  const payload = buildAiAnalysisPayload();
+  if (!validateAiPayload(payload)) return;
+  payload.profileIds = split($("aiCompareProfiles").value);
+  if (!payload.profileIds.length) {
+    payload.profileIds = [$("aiProfile").value || "default"];
+  }
+  $("aiCompareBtn").disabled = true;
+  $("aiResult").textContent = "AI profile 对比中...";
+  try {
+    const result = await api("/api/ai/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    $("aiResult").textContent = JSON.stringify(result, null, 2);
+    $("aiEvidenceNote").textContent = `对比完成：${(result.items || []).filter((item) => item.ok).length} / ${(result.items || []).length}`;
+    renderAiQuality(null);
+    renderAiStructured({});
+    renderAiCitations([]);
+    renderAiExportLink({});
+    await loadAiHistory({ silent: true });
+    setStatus("AI profile 对比完成", result.ok ? "good" : "error");
+  } catch (error) {
+    $("aiResult").textContent = `AI profile 对比失败：${error.message}`;
+    setStatus(`AI profile 对比失败：${error.message}`, "error");
+  } finally {
+    $("aiCompareBtn").disabled = false;
   }
 }
 async function loadAnalysis(options = {}) {
@@ -1270,6 +1336,8 @@ $("aiTestBtn").addEventListener("click", testAiConnection);
 $("aiPreviewEvidenceBtn").addEventListener("click", previewAiEvidence);
 $("aiCopyBtn").addEventListener("click", copyAiAnalysis);
 $("aiHistoryRefreshBtn").addEventListener("click", () => loadAiHistory());
+$("aiBatchBtn").addEventListener("click", runAiBatch);
+$("aiCompareBtn").addEventListener("click", compareAiProfiles);
 $("aiAnalyzeBtn").addEventListener("click", runAiAnalysis);
 filterIds.forEach((id) => $(id).addEventListener("input", () => { reportPage = 1; renderDashboardViews(); }));
 $("resetFiltersBtn").addEventListener("click", resetGlobalFilters);

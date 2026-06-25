@@ -16,6 +16,8 @@ All notable changes to this project will be documented in this file.
 - Local App AI evidence preview with quality warnings, evidence hash, and R/H/O source citations before provider calls.
 - Structured AI analysis post-processing for core conclusion, bullish/bearish evidence, opinion changes, divergence, next-watch items, confidence, and source IDs.
 - Local AI analysis history in `AI_ANALYSIS_HISTORY.jsonl` plus Markdown exports under `AI_ANALYSES/`.
+- Local App AI batch analysis for daily overview, hotspots, industries, and companies, with `AI_BATCH_HISTORY.jsonl` and `AI_DAILY_BRIEF.md`.
+- Multi-profile AI comparison for the same evidence, rough token/cost estimation, and rule-vs-AI consistency checks.
 
 ### Changed
 - Local App background fetch tasks now call the shared `core` orchestration layer directly while the CLI remains an entrypoint wrapper.

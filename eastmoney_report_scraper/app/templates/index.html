@@ -198,21 +198,41 @@
           </label>
           <label>开始日期<input id="aiStartDate" type="date"></label>
           <label>结束日期<input id="aiEndDate" type="date"></label>
+          <label class="ai-compact-field">输入价/1k token<input id="aiInputPrice" type="number" min="0" step="0.000001" placeholder="可选"></label>
+          <label class="ai-compact-field">输出价/1k token<input id="aiOutputPrice" type="number" min="0" step="0.000001" placeholder="可选"></label>
+          <label class="ai-compact-field">批量类型
+            <select id="aiBatchType">
+              <option value="daily_overview">日度总览</option>
+              <option value="hotspots">热点批量</option>
+              <option value="industries">行业批量</option>
+              <option value="companies">公司批量</option>
+            </select>
+          </label>
+          <label class="ai-compact-field">批量数量<input id="aiBatchLimit" type="number" min="1" max="10" value="5"></label>
+          <label class="ai-wide-field">对比 Profiles<input id="aiCompareProfiles" placeholder="例如 default,deepseek"></label>
           <label class="ai-template-prompt" id="aiTemplatePromptWrap" hidden>模板 Prompt<textarea id="aiTemplatePrompt" rows="5" placeholder="可在这里改写当前模板 prompt"></textarea></label>
           <label class="ai-instruction">额外要求<textarea id="aiInstruction" rows="3" placeholder="例如：重点比较评级和目标价是否同步上修"></textarea></label>
           <div class="ai-actions">
-            <button class="ghost" id="aiNewProfileBtn">新建 Profile</button>
-            <button class="ghost" id="aiDeleteProfileBtn">删除 Profile</button>
-            <button class="ghost" id="aiEditPromptBtn">编辑 Prompt</button>
-            <button class="ghost" id="aiResetPromptBtn">恢复 Prompt</button>
-            <button class="ghost" id="aiImportCcSwitchBtn">从 cc-switch 导入</button>
-            <button class="secondary" id="aiSaveBtn">保存 AI 设置</button>
-            <button class="secondary" id="aiClearTokenBtn">清除 Token</button>
-            <button class="secondary" id="aiTestBtn">测试连接</button>
-            <button class="ghost" id="aiPreviewEvidenceBtn">预览 Evidence</button>
-            <button class="ghost" id="aiCopyBtn">复制结果</button>
-            <button class="ghost" id="aiHistoryRefreshBtn">刷新历史</button>
-            <button id="aiAnalyzeBtn">生成 AI 分析</button>
+            <div class="ai-action-group">
+              <button class="ghost" id="aiNewProfileBtn">新建 Profile</button>
+              <button class="ghost" id="aiDeleteProfileBtn">删除 Profile</button>
+              <button class="ghost" id="aiImportCcSwitchBtn">从 cc-switch 导入</button>
+              <button class="secondary" id="aiSaveBtn">保存 AI 设置</button>
+              <button class="secondary" id="aiClearTokenBtn">清除 Token</button>
+              <button class="secondary" id="aiTestBtn">测试连接</button>
+            </div>
+            <div class="ai-action-group">
+              <button class="ghost" id="aiEditPromptBtn">编辑 Prompt</button>
+              <button class="ghost" id="aiResetPromptBtn">恢复 Prompt</button>
+              <button class="ghost" id="aiPreviewEvidenceBtn">预览 Evidence</button>
+              <button class="ghost" id="aiCopyBtn">复制结果</button>
+              <button class="ghost" id="aiHistoryRefreshBtn">刷新历史</button>
+            </div>
+            <div class="ai-action-group primary">
+              <button class="secondary" id="aiBatchBtn">批量分析</button>
+              <button class="secondary" id="aiCompareBtn">对比 Profiles</button>
+              <button id="aiAnalyzeBtn">生成 AI 分析</button>
+            </div>
           </div>
         </div>
         <div class="ai-evidence-note" id="aiEvidenceNote">会优先使用当前研究对象和全局筛选后的研报、热点、观点变化数据。</div>

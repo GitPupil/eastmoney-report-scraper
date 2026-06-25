@@ -13,14 +13,19 @@ from ..ai import (
     build_ai_evidence,
     delete_ai_profile,
     enrich_ai_result,
+    estimate_ai_request,
     import_cc_switch_ai_config,
     list_ai_analysis_history,
     list_ai_prompt_templates,
     load_ai_config,
+    load_ai_config_for_profile,
     probe_ai_connection,
     public_ai_profile_settings,
     redact_secrets,
+    run_ai_batch,
+    run_ai_comparison,
     save_ai_analysis_record,
+    build_rule_ai_consistency,
     set_active_ai_profile,
     update_ai_config,
 )
@@ -126,12 +131,21 @@ class LocalAppServices:
         self.ensure_ready()
         evidence = self._build_ai_evidence_from_payload(payload)
         preview = enrich_ai_result({"analysis": "", "evidence": evidence})
+        estimate = estimate_ai_request(
+            evidence,
+            instruction=str(payload.get("instruction") or ""),
+            template_id=str(payload.get("templateId") or "general_research"),
+            template_prompt=str(payload.get("templatePrompt") or ""),
+            input_price_per_1k=float(payload.get("inputPricePer1k") or 0),
+            output_price_per_1k=float(payload.get("outputPricePer1k") or 0),
+        )
         return {
             "ok": preview["quality"]["ok"],
             "evidence": evidence,
             "quality": preview["quality"],
             "citations": preview["citations"],
             "evidenceHash": preview["evidenceHash"],
+            "estimate": estimate,
         }
 
     def ai_analyze(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -147,7 +161,17 @@ class LocalAppServices:
                 template_prompt=str(payload.get("templatePrompt") or ""),
                 http_post=self.ai_http_post,
             )
-            record = save_ai_analysis_record(self.output_root, build_ai_record(result, payload))
+            record = build_ai_record(result, payload)
+            record["estimate"] = estimate_ai_request(
+                evidence,
+                instruction=str(payload.get("instruction") or ""),
+                template_id=str(payload.get("templateId") or "general_research"),
+                template_prompt=str(payload.get("templatePrompt") or ""),
+                input_price_per_1k=float(payload.get("inputPricePer1k") or 0),
+                output_price_per_1k=float(payload.get("outputPricePer1k") or 0),
+            )
+            record["consistency"] = build_rule_ai_consistency(record)
+            record = save_ai_analysis_record(self.output_root, record)
             return {**result, "historyRecord": record}
         except Exception as exc:
             preview = enrich_ai_result({"analysis": "", "evidence": evidence})
@@ -163,6 +187,40 @@ class LocalAppServices:
     def ai_history(self, limit: int = 50) -> Dict[str, Any]:
         self.ensure_ready()
         return list_ai_analysis_history(self.output_root, limit=limit)
+
+    def ai_batch(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        self.ensure_ready()
+        config = load_ai_config(self.output_root)
+        return run_ai_batch(
+            config,
+            self.dashboard_data(),
+            self.output_root,
+            batch_type=str(payload.get("batchType") or "daily_overview"),
+            limit=int(payload.get("limit") or 5),
+            filters=payload.get("filters") or {},
+            instruction=str(payload.get("instruction") or ""),
+            http_post=self.ai_http_post,
+            write_daily_brief=bool(payload.get("writeDailyBrief", True)),
+            input_price_per_1k=float(payload.get("inputPricePer1k") or 0),
+            output_price_per_1k=float(payload.get("outputPricePer1k") or 0),
+        )
+
+    def ai_compare(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        self.ensure_ready()
+        profile_ids = [str(item) for item in payload.get("profileIds") or [] if str(item or "").strip()]
+        if not profile_ids:
+            profile_ids = [str(public_ai_profile_settings(self.output_root).get("activeProfileId") or "default")]
+        configs = [(profile_id, load_ai_config_for_profile(self.output_root, profile_id)) for profile_id in profile_ids]
+        evidence = self._build_ai_evidence_from_payload(payload)
+        return run_ai_comparison(
+            configs,
+            evidence,
+            self.output_root,
+            request_payload=payload,
+            instruction=str(payload.get("instruction") or ""),
+            template_id=str(payload.get("templateId") or "general_research"),
+            http_post=self.ai_http_post,
+        )
 
     def runs(self, limit: int = 50) -> Dict[str, Any]:
         self.ensure_ready()

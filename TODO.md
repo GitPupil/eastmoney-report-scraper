@@ -67,19 +67,19 @@
 - [x] Add traceable citations from AI conclusions back to report IDs, brokers, dates, ratings, target prices, EPS fields, and hotspot reason codes.
 - [x] Add AI analysis history cache `AI_ANALYSIS_HISTORY.jsonl`, keyed by scope, evidence hash, prompt template, provider, and model.
 - [x] Export each successful AI analysis to `AI_ANALYSES/*.md` for local review or Obsidian.
+- [x] Add batch AI analysis jobs for daily overview, HOT/STRONG hotspots, industry groups, and company groups.
+- [x] Add `AI_DAILY_BRIEF.md` generated from batch AI analysis.
+- [x] Add multi-profile comparison for the same evidence, including cheap-model screening and stronger-model deep dives.
+- [x] Add token and optional cost estimation before each AI request.
+- [x] Add rule-vs-AI consistency checks so deterministic signals and AI conclusions can flag conflicts.
 - [ ] Add CLI AI analysis command using the same evidence builder.
 - [ ] Add richer Local App actions to explain selected hotspot and date range presets when an AI token is configured.
 - [ ] Further formalize provider adapters beyond the current OpenAI Chat, OpenAI Responses, Text Completions, Anthropic-compatible, cc-switch, SSE/plain-text, and error-diagnostic tests.
-- [ ] Add batch AI analysis jobs for daily A/B priority reports, HOT/STRONG hotspots, industry groups, and selected watchlists.
-- [ ] Add `AI_DAILY_BRIEF.md` generated from batch AI analysis.
-- [ ] Add multi-model comparison for the same evidence, including cheap-model screening and stronger-model deep dives.
-- [ ] Add token and cost estimation before each AI request.
-- [ ] Add rule-vs-AI consistency checks so deterministic signals and AI conclusions can flag conflicts.
 
 ### AI Analysis Priority Order
 - [x] P0: Prompt templates, richer analysis scopes, provider profiles, provider compatibility tests, and test connection diagnostics.
 - [x] P1: Evidence preview, evidence quality checks, structured AI output, citations/source traceability, Markdown export, and AI analysis history cache.
-- [ ] P2: Batch AI analysis jobs, `AI_DAILY_BRIEF.md`, multi-model comparison, token/cost estimation, and rule-vs-AI consistency checks.
+- [x] P2: Batch AI analysis jobs, `AI_DAILY_BRIEF.md`, multi-profile comparison, token/cost estimation, and rule-vs-AI consistency checks.
 
 ### Market Data & Alpha Feedback
 - [ ] Add optional real-time market data API integration. Users should provide API tokens locally; tokens must not be written to Git, logs, Markdown/CSV/JSONL/XLSX outputs, SQLite rows, dashboard HTML, or error messages.

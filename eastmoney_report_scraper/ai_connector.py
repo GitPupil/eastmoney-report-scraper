@@ -250,6 +250,15 @@ def load_ai_config(output_dir: Path, config_path: Optional[Path] = None) -> AICo
     return _config_from_profile(_active_profile(store))
 
 
+def load_ai_config_for_profile(output_dir: Path, profile_id: str, config_path: Optional[Path] = None) -> AIConfig:
+    store = load_ai_profiles(output_dir, config_path=config_path)
+    requested_profile_id = _safe_profile_id(profile_id)
+    for profile in store.get("profiles", []):
+        if profile.get("id") == requested_profile_id:
+            return _config_from_profile(profile)
+    raise ValueError(f"AI profile not found: {profile_id}")
+
+
 def save_ai_config(config: AIConfig, output_dir: Path, config_path: Optional[Path] = None) -> Path:
     return save_ai_profiles(
         {"activeProfileId": DEFAULT_AI_PROFILE_ID, "profiles": [_profile_from_config(config)]},

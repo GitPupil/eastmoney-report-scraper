@@ -440,6 +440,11 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'id="aiEntityKeys"' in _INDEX_HTML
     assert 'id="aiStartDate"' in _INDEX_HTML
     assert 'id="aiEndDate"' in _INDEX_HTML
+    assert 'id="aiInputPrice"' in _INDEX_HTML
+    assert 'id="aiOutputPrice"' in _INDEX_HTML
+    assert 'id="aiBatchType"' in _INDEX_HTML
+    assert 'id="aiBatchLimit"' in _INDEX_HTML
+    assert 'id="aiCompareProfiles"' in _INDEX_HTML
     assert 'id="aiNewProfileBtn"' in _INDEX_HTML
     assert 'id="aiDeleteProfileBtn"' in _INDEX_HTML
     assert 'id="aiClearTokenBtn"' in _INDEX_HTML
@@ -447,6 +452,11 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'id="aiPreviewEvidenceBtn"' in _INDEX_HTML
     assert 'id="aiCopyBtn"' in _INDEX_HTML
     assert 'id="aiHistoryRefreshBtn"' in _INDEX_HTML
+    assert 'id="aiBatchBtn"' in _INDEX_HTML
+    assert 'id="aiCompareBtn"' in _INDEX_HTML
+    assert 'class="ai-action-group"' in _INDEX_HTML
+    assert 'class="ai-action-group primary"' in _INDEX_HTML
+    assert 'class="ai-wide-field"' in _INDEX_HTML
     assert 'id="aiImportCcSwitchBtn"' in _INDEX_HTML
     assert 'id="aiModel"' in _INDEX_HTML
     assert 'id="aiToken"' in _INDEX_HTML
@@ -464,6 +474,8 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert "function clearAiToken" in app_js
     assert "function previewAiEvidence" in app_js
     assert "function buildAiAnalysisPayload" in app_js
+    assert "function runAiBatch" in app_js
+    assert "function compareAiProfiles" in app_js
     assert "function renderAiStructured" in app_js
     assert "function renderAiCitations" in app_js
     assert "function loadAiHistory" in app_js
@@ -477,6 +489,8 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert 'api("/api/ai/import-cc-switch"' in app_js
     assert 'api("/api/ai/test-connection"' in app_js
     assert 'api("/api/ai/evidence"' in app_js
+    assert 'api("/api/ai/batch"' in app_js
+    assert 'api("/api/ai/compare"' in app_js
     assert 'api("/api/ai/history")' in app_js
     assert 'api("/api/ai/profiles/active"' in app_js
     assert 'api("/api/ai/profiles/delete"' in app_js
@@ -492,6 +506,10 @@ def test_local_app_html_has_tooltips_and_markdown_preview_links():
     assert ".ai-history-item" in app_css
     assert ".multi-select-menu" in app_css
     assert ".multi-select-menu[hidden]" in app_css
+    assert "#aiPanel { order: -1; }" in app_css
+    assert ".workspace-title { order: -2; }" in app_css
+    assert ".ai-grid .ai-instruction, .ai-grid .ai-template-prompt, .ai-grid .ai-actions" in app_css
+    assert ".ai-action-group.primary" in app_css
     assert "position: absolute" in app_css
     assert "max-height: 310px" in app_css
     assert "overflow-y: auto" in app_css
@@ -530,6 +548,8 @@ def test_local_app_serves_split_frontend_assets(tmp_path: Path):
     ai_settings_response = client.get("/api/ai/settings")
     ai_history_response = client.get("/api/ai/history")
     ai_evidence_response = client.post("/api/ai/evidence", json={"scope": "all"})
+    ai_batch_response = client.post("/api/ai/batch", json={"batchType": "daily_overview", "limit": 1})
+    ai_compare_response = client.post("/api/ai/compare", json={"scope": "all", "profileIds": ["default"]})
     saved_ai_response = client.post(
         "/api/ai/settings",
         json={"apiToken": "secret-token-abcdef", "model": "mock-model", "apiFormat": "completions"},
@@ -572,6 +592,10 @@ def test_local_app_serves_split_frontend_assets(tmp_path: Path):
     assert ai_evidence_response.status_code == 200
     assert "evidenceHash" in ai_evidence_response.json()
     assert ai_evidence_response.json()["quality"]["level"] == "empty"
+    assert ai_batch_response.status_code == 200
+    assert ai_batch_response.json()["errorCount"] == 1
+    assert ai_compare_response.status_code == 200
+    assert ai_compare_response.json()["ok"] is False
     assert saved_ai_response.status_code == 200
     assert "secret-token-abcdef" not in saved_ai_response.text
     assert saved_ai_response.json()["settings"]["maskedToken"] == "sec...cdef"
